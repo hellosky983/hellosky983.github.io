@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>五子棋 - 人机对弈</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: #1a1a2e;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    user-select: none;
+  }
+
+  .container {
+    background: #16213e;
+    border-radius: 20px;
+    padding: 30px 40px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 20px;
+    width: 100%;
+  }
+
+  .title {
+    font-size: 28px;
+    color: #e2b04a;
+    font-weight: 700;
+    letter-spacing: 4px;
+  }
+
+  .status {
+    font-size: 16px;
+    color: #ccc;
+    background: #0f3460;
+    padding: 8px 20px;
+    border-radius: 20px;
+    min-width: 140px;
+    text-align: center;
+    transition: all 0.3s;
+  }
+
+  .status.your-turn { color: #4ecca3; border: 2px solid #4ecca3; }
+  .status.ai-turn { color: #e94560; border: 2px solid #e94560; }
+  .status.win { color: #e2b04a; border: 2px solid #e2b04a; animation: pulse 0.8s ease-in-out infinite; }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  canvas {
+    cursor: pointer;
+    border-radius: 8px;
+    background: #e8c97a;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.15);
+  }
+
+  canvas.disabled { cursor: default; }
+
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 15px;
+  }
+
+  button {
+    padding: 10px 28px;
+    font-size: 15px;
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: 1px;
+    transition: all 0.25s;
+    font-family: inherit;
+  }
+
+  .btn-restart {
+    background: #533483;
+    color: #fff;
+  }
+  .btn-restart:hover { background: #6a44b4; transform: translateY(-2px); }
+
+  .btn-undo {
+    background: #0f3460;
+    color: #ccc;
+  }
+  .btn-undo:hover { background: #1a4a7a; transform: translateY(-2px); }
+  .btn-undo:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .last-move {
+    animation: placed 0.3s ease-out;
+  }
+
+  @keyframes placed {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.25); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .info {
+    margin-top: 15px;
+    color: #888;
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <span class="title">五 子 棋</span>
+    <span class="status your-turn" id="status">⚫ 你的回合</span>
+  </div>
+
+  <canvas id="board" width="600" height="600"></canvas>
+
+  <div class="controls">
+    <button class="btn-undo" id="btnUndo" disabled>悔棋</button>
+    <button class="btn-restart" id="btnRestart">重新开始</button>
+  </div>
+
+  <div class="info">你执黑先行 · 五子连珠即胜</div>
+</div>
+
+<script>
+const BOARD_SIZE = 15;
+const CELL = 36;
+const PADDING = 36;
+const RADIUS = 15;
+const CANVAS_SIZE = PADDING * 2 + CELL * (BOARD_SIZE - 1);
+
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+canvas.width = CANVAS_SIZE;
+canvas.height = CANVAS_SIZE;
+
+const EMPTY = 0, BLACK = 1, WHITE = 2;
+
+let board = [];
+let history = [];
+let gameOver = false;
+let currentPlayer = BLACK;
+let lastMove = null;
+let winLine = []; // 获胜的5子坐标
+
+const statusEl = document.getElementById('status');
+const btnUndo = document.getElementById('btnUndo');
+
+const directions = [[0,1],[1,0],[1,1],[1,-1]];
+
+function initBoard() {
+  board = Array.from({length: BOARD_SIZE}, () => Array(BOARD_SIZE).fill(EMPTY));
+  history = [];
+  gameOver = false;
+  currentPlayer = BLACK;
+  lastMove = null;
+  winLine = [];
+  btnUndo.disabled = true;
+  setStatus('⚫ 你的回合', 'your-turn');
+  canvas.classList.remove('disabled');
+  drawBoard();
+}
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = 'status ' + (cls || '');
+}
+
+function drawBoard() {
+  ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+  // Grid lines
+  ctx.strokeStyle = '#5a4a2a';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < BOARD_SIZE; i++) {
+    const pos = PADDING + i * CELL;
+    ctx.beginPath();
+    ctx.moveTo(PADDING, pos);
+    ctx.lineTo(PADDING + CELL * (BOARD_SIZE - 1), pos);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(pos, PADDING);
+    ctx.lineTo(pos, PADDING + CELL * (BOARD_SIZE - 1));
+    ctx.stroke();
+  }
+
+  // Star points
+  const stars = [[3,3],[3,7],[3,11],[7,3],[7,7],[7,11],[11,3],[11,7],[11,11]];
+  ctx.fillStyle = '#5a4a2a';
+  for (const [r,c] of stars) {
+    ctx.beginPath();
+    ctx.arc(PADDING + c * CELL, PADDING + r * CELL, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Pieces
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] === EMPTY) continue;
+      const x = PADDING + c * CELL;
+      const y = PADDING + r * CELL;
+      drawPiece(x, y, board[r][c], board[r][c] === BLACK ? '#1a1a1a' : '#f5f5f5');
+    }
+  }
+
+  // Last move indicator
+  if (lastMove) {
+    const [lr, lc] = lastMove;
+    const x = PADDING + lc * CELL;
+    const y = PADDING + lr * CELL;
+    ctx.strokeStyle = '#e94560';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, RADIUS + 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Win line highlight
+  if (winLine.length === 5) {
+    ctx.strokeStyle = '#e2b04a';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 3]);
+    ctx.beginPath();
+    const first = winLine[0];
+    const last = winLine[4];
+    ctx.moveTo(PADDING + first[1] * CELL, PADDING + first[0] * CELL);
+    ctx.lineTo(PADDING + last[1] * CELL, PADDING + last[0] * CELL);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawPiece(x, y, color, fillColor) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.arc(x + 1.5, y + 1.5, RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Piece gradient
+  const grad = ctx.createRadialGradient(x - 4, y - 4, 2, x, y, RADIUS);
+  if (color === BLACK) {
+    grad.addColorStop(0, '#555');
+    grad.addColorStop(0.7, '#1a1a1a');
+    grad.addColorStop(1, '#000');
+  } else {
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(0.7, '#e0e0e0');
+    grad.addColorStop(1, '#b0b0b0');
+  }
+
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.beginPath();
+  ctx.arc(x - 3, y - 3, RADIUS * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function isValidMove(r, c) {
+  return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && board[r][c] === EMPTY;
+}
+
+function placePiece(r, c, player) {
+  board[r][c] = player;
+  history.push([r, c, player]);
+  lastMove = [r, c];
+}
+
+function checkWin(r, c, player) {
+  for (const [dr, dc] of directions) {
+    const line = [[r, c]];
+    // Forward
+    for (let i = 1; i < 5; i++) {
+      const nr = r + dr * i, nc = c + dc * i;
+      if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+        line.push([nr, nc]);
+      } else break;
+    }
+    // Backward
+    for (let i = 1; i < 5; i++) {
+      const nr = r - dr * i, nc = c - dc * i;
+      if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === player) {
+        line.unshift([nr, nc]);
+      } else break;
+    }
+    if (line.length >= 5) {
+      // Sort line for display
+      line.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      // Trim to 5 consecutive nearest to placed piece
+      const idx = line.findIndex(p => p[0] === r && p[1] === c);
+      const start = Math.max(0, Math.min(idx, line.length - 5));
+      return line.slice(start, start + 5);
+    }
+  }
+  return null;
+}
+
+// ==================== AI ====================
+
+// Pattern scoring
+// pattern: consecutive own pieces, open ends count
+function evaluateDirection(board, r, c, dr, dc, player) {
+  let count = 0;
+  let openEnds = 0;
+  let blocked = 0;
+
+  // Forward
+  let f = 1;
+  while (true) {
+    const nr = r + dr * f, nc = c + dc * f;
+    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) { blocked++; break; }
+    if (board[nr][nc] === player) { count++; f++; }
+    else if (board[nr][nc] === EMPTY) { openEnds++; break; }
+    else { blocked++; break; }
+  }
+
+  // Backward
+  let b = 1;
+  while (true) {
+    const nr = r - dr * b, nc = c - dc * b;
+    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) { blocked++; break; }
+    if (board[nr][nc] === player) { count++; b++; }
+    else if (board[nr][nc] === EMPTY) { openEnds++; break; }
+    else { blocked++; break; }
+  }
+
+  return patternScore(count, openEnds, blocked);
+}
+
+function patternScore(count, openEnds, blocked) {
+  if (blocked === 2) return 0; // fully blocked
+  if (count >= 4) return 100000; // five in a row (count is consecutive pieces besides the empty spot)
+  if (count === 3) {
+    if (openEnds === 2) return 10000;  // open four
+    if (openEnds === 1) return 500;    // closed four
+  }
+  if (count === 2) {
+    if (openEnds === 2) return 500;    // open three
+    if (openEnds === 1) return 50;     // closed three
+  }
+  if (count === 1) {
+    if (openEnds === 2) return 50;     // open two
+    if (openEnds === 1) return 5;      // closed two
+  }
+  if (count === 0) {
+    if (openEnds === 2) return 5;      // open one
+    if (openEnds === 1) return 1;      // closed one
+  }
+  return 0;
+}
+
+function evaluatePosition(r, c, player) {
+  let score = 0;
+  for (const [dr, dc] of directions) {
+    score += evaluateDirection(board, r, c, dr, dc, player);
+  }
+  return score;
+}
+
+function aiMove() {
+  let bestScore = -Infinity;
+  let bestMoves = [];
+
+  // Search radius around existing pieces for efficiency
+  const candidates = new Set();
+
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (board[r][c] !== EMPTY) {
+        for (let dr = -2; dr <= 2; dr++) {
+          for (let dc = -2; dc <= 2; dc++) {
+            const nr = r + dr, nc = c + dc;
+            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE && board[nr][nc] === EMPTY) {
+              candidates.add(nr * BOARD_SIZE + nc);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // If board is empty, play center
+  if (candidates.size === 0) {
+    return [7, 7];
+  }
+
+  for (const key of candidates) {
+    const r = Math.floor(key / BOARD_SIZE);
+    const c = key % BOARD_SIZE;
+
+    // Score as AI (attack) and as human (defense)
+    const attackScore = evaluatePosition(r, c, WHITE);
+    const defenseScore = evaluatePosition(r, c, BLACK);
+
+    // Prioritize winning, then blocking opponent's win, then general position
+    let totalScore;
+    if (attackScore >= 100000) totalScore = attackScore + defenseScore * 0.5;
+    else if (defenseScore >= 100000) totalScore = defenseScore + attackScore * 0.5;
+    else totalScore = attackScore * 1.1 + defenseScore;
+
+    if (totalScore > bestScore) {
+      bestScore = totalScore;
+      bestMoves = [[r, c]];
+    } else if (totalScore === bestScore) {
+      bestMoves.push([r, c]);
+    }
+  }
+
+  // Pick randomly among best moves for variety
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+}
+
+// ==================== Game Flow ====================
+
+function handleClick(e) {
+  if (gameOver || currentPlayer !== BLACK) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = CANVAS_SIZE / rect.width;
+  const scaleY = CANVAS_SIZE / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+
+  const c = Math.round((mx - PADDING) / CELL);
+  const r = Math.round((my - PADDING) / CELL);
+
+  if (!isValidMove(r, c)) return;
+
+  // Human move
+  placePiece(r, c, BLACK);
+  btnUndo.disabled = false;
+  drawBoard();
+
+  // Check win
+  const win = checkWin(r, c, BLACK);
+  if (win) {
+    winLine = win;
+    gameOver = true;
+    drawBoard();
+    setStatus('🏆 你赢了！', 'win');
+    canvas.classList.add('disabled');
+    btnUndo.disabled = true;
+    return;
+  }
+
+  // Check draw
+  if (history.length === BOARD_SIZE * BOARD_SIZE) {
+    gameOver = true;
+    setStatus('平局', '');
+    canvas.classList.add('disabled');
+    return;
+  }
+
+  // AI turn
+  currentPlayer = WHITE;
+  setStatus('⚪ AI 思考中…', 'ai-turn');
+  canvas.classList.add('disabled');
+  btnUndo.disabled = true;
+
+  setTimeout(() => {
+    const [ar, ac] = aiMove();
+    placePiece(ar, ac, WHITE);
+    drawBoard();
+
+    const aiWin = checkWin(ar, ac, WHITE);
+    if (aiWin) {
+      winLine = aiWin;
+      gameOver = true;
+      drawBoard();
+      setStatus('💀 AI 赢了', 'win');
+      canvas.classList.add('disabled');
+      return;
+    }
+
+    if (history.length === BOARD_SIZE * BOARD_SIZE) {
+      gameOver = true;
+      setStatus('平局', '');
+      canvas.classList.add('disabled');
+      return;
+    }
+
+    currentPlayer = BLACK;
+    setStatus('⚫ 你的回合', 'your-turn');
+    canvas.classList.remove('disabled');
+    btnUndo.disabled = false;
+  }, 100);
+}
+
+// Undo: remove both human and AI moves
+function undo() {
+  if (gameOver) return;
+  if (history.length < 2) {
+    // Only human move on board, just undo that
+    if (history.length === 1) {
+      const [r, c] = history.pop();
+      board[r][c] = EMPTY;
+      lastMove = history.length > 0 ? history[history.length - 1].slice(0, 2) : null;
+      drawBoard();
+      btnUndo.disabled = true;
+    }
+    return;
+  }
+  // Remove AI move
+  const [ar, ac] = history.pop();
+  board[ar][ac] = EMPTY;
+  // Remove human move
+  const [hr, hc] = history.pop();
+  board[hr][hc] = EMPTY;
+  lastMove = history.length > 0 ? history[history.length - 1].slice(0, 2) : null;
+  currentPlayer = BLACK;
+  drawBoard();
+  btnUndo.disabled = history.length === 0;
+}
+
+canvas.addEventListener('click', handleClick);
+
+document.getElementById('btnRestart').addEventListener('click', initBoard);
+document.getElementById('btnUndo').addEventListener('click', undo);
+
+// Initialize
+initBoard();
+</script>
+</body>
+</html>
