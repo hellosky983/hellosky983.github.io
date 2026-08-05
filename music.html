@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>幻音 · 网页音乐播放器</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0a16;
+  --card:rgba(255,255,255,.055);
+  --border:rgba(255,255,255,.10);
+  --text:#eef0fa;
+  --muted:#9aa1c0;
+  --acc1:#8b5cf6; --acc2:#ec4899; --acc3:#22d3ee;
+  --grad:linear-gradient(135deg,#8b5cf6,#ec4899);
+}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+  color:var(--text);background:#07070f;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(1200px 800px at 20% 0%,#1b1640 0%,#0a0a18 45%,#07070f 100%)}
+.blob{position:absolute;border-radius:50%;filter:blur(90px);opacity:.45;animation:float 18s ease-in-out infinite;will-change:transform}
+.b1{width:420px;height:420px;background:#6d28d9;top:-120px;left:-80px}
+.b2{width:360px;height:360px;background:#db2777;bottom:-120px;right:-60px;animation-delay:-6s}
+.b3{width:300px;height:300px;background:#0ea5e9;top:35%;left:55%;animation-delay:-12s;opacity:.3}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(34px,42px) scale(1.12)}}
+.grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.35;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.35'/></svg>");}
+
+.app{max-width:1060px;margin:0 auto;padding:30px 22px 50px;display:flex;flex-direction:column;gap:20px}
+
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:14px}
+.logo{width:48px;height:48px;border-radius:14px;background:var(--grad);display:grid;place-items:center;font-size:24px;
+  box-shadow:0 8px 24px rgba(139,92,246,.45), inset 0 1px 0 rgba(255,255,255,.35)}
+.brand h1{font-size:22px;letter-spacing:1px}
+.brand p{font-size:12px;color:var(--muted);letter-spacing:2px;margin-top:2px}
+.btn.import{display:inline-flex;align-items:center;gap:8px;padding:0 18px;height:42px;border-radius:99px;cursor:pointer;
+  border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--text);font-size:14px;font-family:inherit;transition:.2s}
+.btn.import:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.25)}
+.btn.import svg{width:16px;height:16px}
+
+.player-card{display:grid;grid-template-columns:1.05fr .95fr;gap:28px;
+  background:var(--card);border:1px solid var(--border);border-radius:28px;padding:30px;
+  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  box-shadow:0 30px 80px rgba(0,0,0,.5);transition:border-color .3s}
+.player-card.dragging{border-color:var(--acc3);box-shadow:0 0 0 3px rgba(34,211,238,.25),0 30px 80px rgba(0,0,0,.5)}
+
+.now{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+.disc-wrap{position:relative;width:360px;height:360px;flex:none}
+#viz{position:absolute;inset:0;width:100%;height:100%}
+.disc{position:absolute;left:50%;top:50%;width:250px;height:250px;margin:-125px;border-radius:50%;
+  animation:spin 16s linear infinite;cursor:pointer}
+.disc.paused{animation-play-state:paused}
+.disc::before{content:'';position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle,#26262f 0%,#12121c 55%,#0a0a10 100%);
+  box-shadow:inset 0 0 30px rgba(0,0,0,.9),0 18px 40px rgba(0,0,0,.5)}
+.disc::after{content:'';position:absolute;inset:0;border-radius:50%;
+  background:repeating-radial-gradient(circle at 50% 50%,transparent 0 2px,rgba(255,255,255,.045) 2px 3px)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.disc-art{position:absolute;inset:60px;border-radius:50%;border:3px solid rgba(255,255,255,.18);
+  box-shadow:0 0 0 6px rgba(0,0,0,.35), inset 0 0 24px rgba(0,0,0,.25)}
+.disc-label{position:absolute;inset:100px;border-radius:50%;background:rgba(255,255,255,.93);color:#16162a;
+  display:grid;place-items:center;font-weight:700;font-size:15px;letter-spacing:1px;text-align:center;
+  padding:10px;box-shadow:inset 0 0 12px rgba(0,0,0,.25);overflow:hidden;white-space:nowrap}
+.disc-hole{position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px;border-radius:50%;
+  background:#0b0b12;border:2px solid rgba(0,0,0,.45);z-index:2}
+
+.meta{text-align:center;margin-top:10px}
+.eq-bars{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:18px;margin-bottom:10px}
+.eq-bars span{width:3px;background:var(--grad);border-radius:2px;animation:eq .9s ease-in-out infinite}
+.eq-bars span:nth-child(2){animation-delay:.15s}
+.eq-bars span:nth-child(3){animation-delay:.3s}
+.eq-bars span:nth-child(4){animation-delay:.45s}
+.eq-bars span:nth-child(5){animation-delay:.1s}
+@keyframes eq{0%,100%{height:20%}50%{height:100%}}
+.meta .eqnow{visibility:hidden}
+.meta.playing .eqnow{visibility:visible}
+.meta h2{font-size:24px;letter-spacing:1px}
+.meta .artist{color:var(--muted);font-size:14px;margin-top:6px}
+.meta .hint{color:var(--muted);font-size:12px;margin-top:14px;opacity:.7}
+
+.playlist-panel{display:flex;flex-direction:column;min-height:460px}
+.pl-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.pl-head h3{font-size:15px;letter-spacing:2px;color:#c8cdea}
+.pl-tools{display:flex;gap:8px}
+.btn.small{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.05);
+  display:grid;place-items:center;cursor:pointer;color:var(--muted);transition:.2s}
+.btn.small:hover{color:var(--text);background:rgba(255,255,255,.12)}
+.btn.small.on{color:#f0abfc;border-color:rgba(240,171,252,.55);background:rgba(236,72,153,.14)}
+.btn.small svg{width:15px;height:15px}
+#playlist{list-style:none;overflow-y:auto;flex:1;padding-right:6px;max-height:440px;min-height:120px}
+#playlist::-webkit-scrollbar{width:6px}
+#playlist::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px}
+#playlist::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.28)}
+#playlist li{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:14px;cursor:pointer;transition:.2s;
+  border:1px solid transparent;margin-bottom:4px}
+#playlist li:hover{background:rgba(255,255,255,.05)}
+#playlist li.active{background:rgba(139,92,246,.15);border-color:rgba(139,92,246,.35)}
+.cover{width:44px;height:44px;border-radius:12px;flex:none;display:grid;place-items:center;color:rgba(255,255,255,.92);
+  font-size:18px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15), 0 6px 14px rgba(0,0,0,.35)}
+.t-info{flex:1;min-width:0}
+.t-info .name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-info .artist{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+li .dur{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+li .eq-bars{height:14px;margin:0;width:26px}
+li .eq-bars span{background:#f0abfc}
+.drop-hint{margin-top:14px;border:1.5px dashed rgba(255,255,255,.16);border-radius:16px;padding:14px;text-align:center;
+  font-size:12px;color:var(--muted)}
+
+.controls{display:flex;align-items:center;gap:14px;margin-top:26px;padding-top:22px;border-top:1px solid var(--border);flex-wrap:wrap}
+.btn{width:46px;height:46px;border-radius:50%;border:1px solid var(--border);background:rgba(255,255,255,.05);
+  display:grid;place-items:center;cursor:pointer;transition:.2s;color:var(--text);flex:none}
+.btn:hover{background:rgba(255,255,255,.12);transform:scale(1.05)}
+.btn svg{width:18px;height:18px}
+.btn.play{width:62px;height:62px;background:var(--grad);border:none;box-shadow:0 10px 30px rgba(236,72,153,.4);font-size:0}
+.btn.play:hover{transform:scale(1.06);box-shadow:0 14px 36px rgba(236,72,153,.55)}
+.btn.play svg{width:22px;height:22px;fill:#fff;stroke:#fff}
+.time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:38px;text-align:center;flex:none}
+.progress{flex:1;min-width:120px;height:8px;border-radius:99px;background:rgba(255,255,255,.09);cursor:pointer;position:relative}
+.progress-fill{position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:99px;background:var(--grad);box-shadow:0 0 12px rgba(236,72,153,.5)}
+.progress-knob{position:absolute;top:50%;transform:translate(-50%,-50%);width:14px;height:14px;border-radius:50%;
+  background:#fff;box-shadow:0 0 10px rgba(236,72,153,.9);opacity:0;transition:opacity .2s;left:0%}
+.progress:hover .progress-knob,.progress.dragging .progress-knob{opacity:1}
+.vol-wrap{display:flex;align-items:center;gap:8px;flex:none}
+input[type=range]{-webkit-appearance:none;appearance:none;width:90px;height:4px;border-radius:99px;background:rgba(255,255,255,.15);outline:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 0 8px rgba(139,92,246,.8)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:#fff;border:none;box-shadow:0 0 8px rgba(139,92,246,.8)}
+.foot-hint{text-align:center;font-size:12px;color:var(--muted);opacity:.65}
+
+@media(max-width:880px){
+  .player-card{grid-template-columns:1fr}
+  .disc-wrap{width:300px;height:300px;margin:0 auto}
+  .playlist-panel{min-height:360px}
+  .vol-wrap input[type=range]{width:60px}
+}
+</style>
+</head>
+<body>
+
+<div class="bg">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+</div>
+<div class="grain"></div>
+
+<main class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">🎵</div>
+      <div>
+        <h1>幻音</h1>
+        <p>HUAN YIN · WEB MUSIC PLAYER</p>
+      </div>
+    </div>
+    <button class="btn import" id="importBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      导入本地音乐
+    </button>
+    <input type="file" id="fileInput" accept="audio/*" multiple hidden>
+  </header>
+
+  <section class="player-card" id="card">
+    <div class="now">
+      <div class="disc-wrap">
+        <canvas id="viz" width="760" height="760"></canvas>
+        <div class="disc paused" id="disc">
+          <div class="disc-art" id="discArt"></div>
+          <div class="disc-label" id="discLabel">月</div>
+          <div class="disc-hole"></div>
+        </div>
+      </div>
+      <div class="meta" id="meta">
+        <div class="eq-bars eqnow"><span></span><span></span><span></span><span></span><span></span></div>
+        <h2 id="trackTitle">明月</h2>
+        <p class="artist" id="trackArtist">幻音 Demo · 明月主题纯音乐</p>
+        <p class="hint">内置 Demo 曲目 · 可拖拽或导入本地音乐</p>
+      </div>
+    </div>
+
+    <div class="playlist-panel">
+      <div class="pl-head">
+        <h3>播放列表</h3>
+        <div class="pl-tools">
+          <button class="btn small" id="shuffleBtn" title="随机播放">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+          </button>
+          <button class="btn small" id="repeatBtn" title="循环模式">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          </button>
+        </div>
+      </div>
+      <ul id="playlist"></ul>
+      <div class="drop-hint">将音频文件拖拽到卡片任意位置即可添加到播放列表</div>
+    </div>
+  </section>
+
+  <footer class="controls">
+    <button class="btn" id="prevBtn" title="上一首">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+    </button>
+    <button class="btn play" id="playBtn" title="播放 / 暂停">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+    </button>
+    <button class="btn" id="nextBtn" title="下一首">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+    </button>
+    <span class="time" id="curTime">0:00</span>
+    <div class="progress" id="progress">
+      <div class="progress-fill" id="progressFill"></div>
+      <div class="progress-knob" id="progressKnob"></div>
+    </div>
+    <span class="time" id="totTime">0:00</span>
+    <div class="vol-wrap">
+      <button class="btn small" id="muteBtn" title="静音">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+      </button>
+      <input type="range" id="volInp" min="0" max="1" step="0.01" value="0.85">
+    </div>
+  </footer>
+
+  <p class="foot-hint">空格 播放/暂停 · ← / → 跳转 · ↑ / ↓ 音量 · 支持拖拽或导入本地音频</p>
+</main>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- 工具函数 ---------- */
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+const fmt=s=>{ s=Math.max(0,Math.floor(s||0)); const m=Math.floor(s/60),ss=s%60; return m+':'+String(ss).padStart(2,'0'); };
+const CH={maj:[0,4,7],min:[0,3,7],maj7:[0,4,7,11],min7:[0,3,7,10],dom7:[0,4,7,10]};
+/* ---- 《明月》扩展和弦音色表 ---- */
+const VOICE={
+  Abmaj9:[0,14,16,19,23], Fm7:[0,12,15,19,22], Bbm11:[0,19,22,26,29], 'Eb13sus':[0,5,7,10,21],
+  Aadd9:[0,14,16,19], 'C#m7':[0,12,15,19,22], 'F#m7':[0,12,15,19,22], Dmaj7:[0,12,16,19,23],
+  Bb7:[0,12,16,19,22], E7:[0,12,16,19,22]
+};
+const ROOT={Abmaj9:44,Fm7:41,Bbm11:46,'Eb13sus':51,Aadd9:45,'C#m7':49,'F#m7':54,Dmaj7:50,Bb7:46,E7:52};
+const PROG={
+  verse:['Abmaj9','Fm7','Bbm11','Eb13sus'],
+  chorus:['Aadd9','C#m7','F#m7','Dmaj7'],
+  Bp:['Aadd9','C#m7','Bb7','Dmaj7'],
+  interlude:['Aadd9','Bb7','Aadd9','E7'],
+  outro:['Aadd9','F#m7','Dmaj7','Aadd9']
+};
+function voiceChord(root,t){
+  const iv=CH[t]||CH.maj;
+  const n=[root,root+12];
+  for(let k=1;k<iv.length;k++) n.push(root+iv[k]+12);
+  return n;
+}
+
+/* ---------- 图标 ---------- */
+const SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">';
+const IC={
+  play:SVG+'<polygon points="5 3 19 12 5 21 5 3"/></svg>',
+  pause:SVG+'<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>',
+  repeat:SVG+'<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>',
+  repeat1:SVG+'<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/><line x1="11" y1="10" x2="13" y2="10"/><line x1="12" y1="10" x2="12" y2="14"/></svg>',
+  vol:SVG+'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>',
+  mute:SVG+'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>'
+};
+
+/* ---------- 音频核心 ---------- */
+let ac, master, analyser, synth, noiseBuf, freq, dpr=1;
+const state={tracks:[],currentIndex:0,playing:false,engine:null,bufferSrc:null,bufferOffset:0,bufferStart:0,
+  volume:0.85,muted:false,shuffle:false,repeat:'all',dragging:false};
+
+class SynthEngine{
+  constructor(ac,bus,delayIn,noise){ this.ac=ac;this.bus=bus;this.delayIn=delayIn;this.noise=noise;
+    this.pattern=null;this.stepIndex=0;this.stepTime=0;this.startT=0; }
+  setPattern(p){ this.pattern=p; }
+  startFrom(posSec){
+    if(!this.pattern) return;
+    this.startT=this.ac.currentTime-posSec;
+    this.stepIndex=Math.max(0,Math.floor(posSec/this.pattern.stepDur));
+    this.stepTime=this.startT+this.stepIndex*this.pattern.stepDur;
+  }
+  tick(){
+    const p=this.pattern; if(!p) return;
+    const horizon=this.ac.currentTime+0.12;
+    while(this.stepTime<horizon){
+      this.playStep(this.stepIndex%p.total,this.stepTime,p);
+      this.stepIndex++;
+      this.stepTime+=p.stepDur;
+    }
+  }
+  playStep(step,t,p){
+    const bar=Math.floor(step/16), st=step%16, mix=p.mix||1;
+    const voicing=p.voicings[bar%p.voicings.length];
+    const root=p.bassRoots[bar%p.bassRoots.length];
+    if(st===0) this.pad(voicing,t,16*p.stepDur,p.padLowpass,p.padAttack);
+    const bi=p.bass.indexOf(st);
+    if(bi>=0){ const d=(p.bassDur&&p.bassDur[bi])||4; this.bass(root-12,t,d*p.stepDur); }
+    if(p.kick.has(step)) this.kick(t,mix*(p.kickGain||1));
+    if(p.snare.has(step)) this.snare(t,mix);
+    if(p.hat.has(step)) this.hat(t, step%2===0?0.55:0.3, mix);
+    if(p.ride&&p.ride.has(step)) this.ride(t, (st===0||st===8)?0.55:0.3, mix);
+    if(p.strum&&st%4===0) this.strumChord(voicing,t,0.75);
+    const mel=p.melByStep.get(step);
+    if(mel){
+      const dur=mel[2]*p.stepDur;
+      if(p.melVoice==='pluck') this.pluck(mel[1],t,dur,mel[3]);
+      else this.melody(mel[1],t,dur,mel[3]);
+    }
+  }
+  pad(voicing,t,dur,lowF,att){
+    const ac=this.ac;
+    for(const n of voicing){
+      const f=mtof(n);
+      const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f; o.detune.value=Math.random()*6-3;
+      const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=lowF;
+      const g=ac.createGain();
+      g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(0.02,t+Math.min(att,dur*0.3));
+      g.gain.setValueAtTime(0.02,t+dur*0.7);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur+0.6);
+      o.connect(lp); lp.connect(g); g.connect(this.bus);
+      o.start(t); o.stop(t+dur+0.7);
+    }
+  }
+  pluck(midi,t,dur,vel){
+    const ac=this.ac, f=mtof(midi);
+    const o=ac.createOscillator(); o.type='sawtooth'; o.frequency.value=f;
+    const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=Math.min(f*6,9000);
+    const g=ac.createGain();
+    const pk=0.16*vel;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(pk,t+0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur*0.9+0.2);
+    o.connect(lp); lp.connect(g); g.connect(this.bus);
+    o.start(t); o.stop(t+dur+0.3);
+    const o2=ac.createOscillator(); o2.type='sine'; o2.frequency.value=f*4;
+    const g2=ac.createGain();
+    g2.gain.setValueAtTime(0.0001,t);
+    g2.gain.exponentialRampToValueAtTime(0.05*vel,t+0.004);
+    g2.gain.exponentialRampToValueAtTime(0.0001,t+dur*0.8);
+    o2.connect(g2); g2.connect(this.bus);
+    o2.start(t); o2.stop(t+dur+0.3);
+  }
+  strumChord(voicing,t,vel){
+    const ac=this.ac;
+    voicing.slice(0,5).forEach((n,k)=>{
+      const tt=t+k*0.03, f=mtof(n);
+      const o=ac.createOscillator(); o.type='triangle'; o.frequency.value=f; o.detune.value=Math.random()*4-2;
+      const lp=ac.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2600;
+      const g=ac.createGain();
+      const pk=0.085*vel;
+      g.gain.setValueAtTime(0.0001,tt);
+      g.gain.exponentialRampToValueAtTime(pk,tt+0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001,tt+0.7);
+      o.connect(lp); lp.connect(g); g.connect(this.bus);
+      o.start(tt); o.stop(tt+0.8);
+    });
+  }
+  ride(t,vel,mix){
+    const ac=this.ac;
+    const n=ac.createBufferSource(); n.buffer=this.noise;
+    const hp=ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=8000;
+    const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=10000; bp.Q.value=1.2;
+    const g=ac.createGain();
+    const pk=0.10*vel*mix;
+    g.gain.setValueAtTime(pk,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.7);
+    n.connect(hp); hp.connect(bp); bp.connect(g); g.connect(this.bus);
+    n.start(t); n.stop(t+0.75);
+  }
+  bass(midi,t,dur){
+    const ac=this.ac, f=mtof(midi);
+    const o=ac.createOscillator(); o.type='sine'; o.frequency.value=f;
+    const o2=ac.createOscillator(); o2.type='sine'; o2.frequency.value=f*2;
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.26,t+0.02);
+    g.gain.setValueAtTime(0.26,t+dur*0.8);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur+0.05);
+    const g2=ac.createGain(); g2.gain.value=0.22;
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(this.bus);
+    o.start(t); o.stop(t+dur+0.1); o2.start(t); o2.stop(t+dur+0.1);
+  }
+  melody(midi,t,dur,vel){
+    const ac=this.ac, f=mtof(midi), pk=0.2*vel;
+    const o=ac.createOscillator(); o.type='triangle'; o.frequency.value=f; o.detune.value=-3;
+    const o2=ac.createOscillator(); o2.type='sine'; o2.frequency.value=f;
+    const o3=ac.createOscillator(); o3.type='sine'; o3.frequency.value=f*2;
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(pk,t+0.012);
+    g.gain.exponentialRampToValueAtTime(pk*0.35,t+dur*0.6);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur+0.1);
+    const g2=ac.createGain(); g2.gain.value=0.35;
+    const g3=ac.createGain(); g3.gain.value=0.12;
+    o.connect(g); o2.connect(g2); g2.connect(g); o3.connect(g3); g3.connect(g); g.connect(this.bus);
+    o.start(t); o.stop(t+dur+0.15); o2.start(t); o2.stop(t+dur+0.15); o3.start(t); o3.stop(t+dur+0.15);
+  }
+  kick(t,mix){
+    const ac=this.ac;
+    const o=ac.createOscillator(); o.type='sine';
+    o.frequency.setValueAtTime(150,t);
+    o.frequency.exponentialRampToValueAtTime(44,t+0.1);
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.9*mix,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+    o.connect(g); g.connect(this.bus);
+    o.start(t); o.stop(t+0.2);
+  }
+  snare(t,mix){
+    const ac=this.ac;
+    const n=ac.createBufferSource(); n.buffer=this.noise;
+    const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=1900; bp.Q.value=0.8;
+    const g=ac.createGain();
+    g.gain.setValueAtTime(0.28*mix,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.13);
+    n.connect(bp); bp.connect(g); g.connect(this.bus);
+    n.start(t); n.stop(t+0.15);
+  }
+  hat(t,vel,mix,open){
+    const ac=this.ac;
+    const n=ac.createBufferSource(); n.buffer=this.noise;
+    const hp=ac.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=open?6500:7500;
+    const g=ac.createGain();
+    const d=open?0.22:0.045, pk=(open?0.1:0.15*vel)*mix;
+    g.gain.setValueAtTime(pk,t);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+d);
+    n.connect(hp); hp.connect(g); g.connect(this.bus);
+    n.start(t); n.stop(t+d+0.02);
+  }
+}
+
+function ensureAudio(){
+  if(ac) return;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  ac=new AC();
+  master=ac.createGain(); master.gain.value=state.volume;
+  const comp=ac.createDynamicsCompressor();
+  analyser=ac.createAnalyser(); analyser.fftSize=256; analyser.smoothingTimeConstant=0.8;
+  master.connect(comp); comp.connect(analyser); analyser.connect(ac.destination);
+
+  const bus=ac.createGain(); bus.gain.value=1; bus.connect(master);
+  const delay=ac.createDelay(1); delay.delayTime.value=0.28;
+  const fb=ac.createGain(); fb.gain.value=0.35;
+  const wet=ac.createGain(); wet.gain.value=0.5;
+  const delayIn=ac.createGain(); delayIn.gain.value=0.2;
+  bus.connect(delayIn); delayIn.connect(delay); delay.connect(fb); fb.connect(delay);
+  delay.connect(wet); wet.connect(master);
+
+  const nb=ac.createBuffer(1,ac.sampleRate,ac.sampleRate);
+  const d=nb.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  noiseBuf=nb;
+
+  synth=new SynthEngine(ac,bus,delayIn,noiseBuf);
+  setInterval(()=>synth.tick(),40);
+  freq=new Uint8Array(analyser.frequencyBinCount);
+}
+
+/* ---------- 内置 Demo 曲目 ---------- */
+const steps=(bars,fn)=>{const s=[];for(let b=0;b<bars;b++)for(let i=0;i<16;i++)if(fn(b,i))s.push(b*16+i);return s;};
+function mkPattern(cfg){
+  const stepDur=60/cfg.bpm/4, total=cfg.bars*16, loopLen=total*stepDur;
+  return {
+    name:cfg.name,bpm:cfg.bpm,stepDur,total,loopLen,
+    voicings:cfg.voicings||(cfg.chords.map(c=>voiceChord(c[0],c[1]))),
+    bassRoots:cfg.bassRoots||cfg.chords.map(c=>c[0]),
+    kick:new Set(cfg.kick), snare:new Set(cfg.snare||[]), hat:new Set(cfg.hat||[]),
+    ride:new Set(cfg.ride||[]),
+    bass:cfg.bass||[0,10], bassDur:cfg.bassDur||[8,4],
+    melByStep:new Map(cfg.melody.map(m=>[m[0],m])), mix:cfg.mix||1,
+    strum:!!cfg.strum, kickGain:cfg.kickGain||1,
+    padLowpass:cfg.padLowpass||1200, padAttack:cfg.padAttack==null?0.4:cfg.padAttack,
+    melVoice:cfg.melVoice||'default'
+  };
+}
+const artFor=hue=>`radial-gradient(circle at 30% 28%, hsl(${hue} 90% 64%), hsl(${hue} 70% 46%) 42%, hsl(${hue-40} 72% 32%) 74%, hsl(${hue-70} 55% 18%) 100%)`;
+
+const m1=[
+  [[0,76,2,.8],[4,74,2,.6],[8,72,3,.75],[12,74,2,.55]],
+  [[0,74,2,.7],[4,71,2,.6],[8,67,3,.75],[12,69,2,.55]],
+  [[0,69,2,.75],[4,72,2,.7],[8,76,3,.8],[12,72,2,.6]],
+  [[0,72,2,.7],[4,74,2,.6],[8,77,3,.8],[12,76,2,.6]],
+  [[0,67,2,.7],[4,76,3,.75],[8,74,2,.6],[12,72,2,.65]],
+  [[0,71,2,.7],[4,74,2,.6],[8,79,3,.8],[12,74,2,.6]],
+  [[0,72,2,.8],[4,69,2,.65],[8,72,2,.6],[12,76,2,.7]],
+  [[0,74,2,.7],[4,77,2,.6],[8,69,2,.55],[12,67,2,.6]]
+];
+const p1=mkPattern({
+  bpm:84,bars:8,
+  chords:[60,55,57,53, 60,55,57,53].map((r,i)=>[r,['maj','maj','min','maj'][i%4]]),
+  melody:m1.flatMap((b,bi)=>b.map(x=>[bi*16+x[0],x[1],x[2],x[3]])),
+  kick:steps(8,(b,i)=>i%4===0),
+  snare:steps(8,(b,i)=>i===4||i===12),
+  hat:steps(8,(b,i)=>i%4===2)
+});
+const p2=mkPattern({
+  bpm:92,bars:8,
+  chords:[57,53,48,55, 57,53,48,55].map((r,i)=>[r,['min7','maj7','maj7','maj'][i%4]]),
+  melody:[
+    [[0,81,3,.75],[6,79,2,.6],[10,76,2,.6],[12,84,2,.5]],
+    [[0,77,3,.7],[4,81,2,.6],[8,84,3,.8],[12,79,2,.55]],
+    [[0,76,2,.7],[6,79,2,.6],[10,83,2,.6],[12,74,3,.55]],
+    [[0,74,2,.7],[4,79,2,.65],[8,83,3,.8],[12,81,2,.6]]
+  ].flatMap((b,bi)=>b.map(x=>[(bi%4)*16+x[0],x[1],x[2],x[3]])),
+  kick:steps(8,(b,i)=>i%4===0),
+  snare:steps(8,(b,i)=>i===4||i===12),
+  hat:steps(8,()=>true),
+  bass:[0,7,10],bassDur:[3,2,3]
+});
+const p3=mkPattern({
+  bpm:70,bars:8,
+  chords:[48,57,53,55, 48,57,53,55].map((r,i)=>[r,['maj','min7','maj7','maj'][i%4]]),
+  melody:[
+    [[0,76,6,.8],[10,74,4,.55]],
+    [[2,72,5,.6],[12,76,2,.5]],
+    [[0,69,5,.7],[8,72,4,.6],[14,71,2,.45]],
+    [[0,67,6,.75],[10,69,4,.5]]
+  ].flatMap((b,bi)=>b.map(x=>[(bi%4)*16+x[0],x[1],x[2],x[3]])),
+  kick:steps(8,(b,i)=>i===0||i===8),
+  snare:steps(8,(b,i)=>i===8),
+  hat:steps(8,(b,i)=>i%4===2),
+  mix:0.55
+});
+
+/* ================= 《明月》主题纯音乐 =================
+   定调：Ab Major（1=♭A，BPM 72）
+   结构：前奏4 → 主歌A1 8 → 主歌A2 8 → 副歌B 8 → 间奏4 → 副歌B' 8 → 尾奏4（淡出）
+   主歌：Abmaj9 - Fm7 - Bbm11 - Eb13sus
+   副歌：升半调至 A Major（Aadd9 - C#m7 - F#m7 - Dmaj7），B' 段以 ♭II7(Bb7) 降二级替代制造张力
+   音色：Koto泛音(pluck) + Juno-60 Pad(低通800Hz) + 尼龙吉他四分扫弦 + Ride/软底鼓 */
+function buildBars(n,chords){ const v=[],r=[]; for(let i=0;i<n;i++){ const c=chords[i%chords.length]; v.push(VOICE[c].map(o=>ROOT[c]+o)); r.push(ROOT[c]); } return {v,r}; }
+const _V=buildBars(20,PROG.verse), _B=buildBars(8,PROG.chorus), _I=buildBars(4,PROG.interlude), _Bp=buildBars(8,PROG.Bp), _O=buildBars(4,PROG.outro);
+const moonVoicings=_V.v.concat(_B.v,_I.v,_Bp.v,_O.v);
+const moonRoots=_V.r.concat(_B.r,_I.r,_Bp.r,_O.r);
+const melIntro=[
+  [[0,75,8,.6]],
+  [[0,77,12,.6]],
+  [[0,70,8,.55],[8,72,8,.5]],
+  [[0,75,12,.6]]
+];
+const melM4_7=[
+  [[0,68,8,.6],[8,72,4,.55],[12,75,4,.6]],
+  [[0,77,4,.7],[4,82,4,.75],[8,81,4,.65],[12,77,4,.55]],
+  [[0,70,4,.6],[4,72,4,.6],[8,73,4,.6],[12,72,4,.5]],
+  [[0,75,8,.65],[8,73,4,.55],[12,72,4,.5]]
+];
+const melM8_11=[
+  [[0,68,4,.6],[4,75,4,.65],[8,73,4,.55],[12,72,4,.5]],
+  [[0,72,4,.6],[4,77,4,.7],[8,76,4,.6],[12,72,4,.5]],
+  [[0,70,4,.6],[4,72,4,.6],[8,73,4,.6],[12,75,8,.6]],
+  [[0,72,8,.6],[8,70,4,.55],[12,68,4,.55]]
+];
+const melB=[
+  [[0,69,8,.7],[8,73,4,.6],[12,76,4,.65]],
+  [[0,76,4,.7],[4,81,4,.75],[8,80,4,.65],[12,76,4,.55]],
+  [[0,73,8,.6],[8,78,4,.6],[12,76,4,.55]],
+  [[0,74,4,.6],[4,81,4,.75],[8,80,4,.65],[12,78,4,.55]]
+];
+const melInt=[
+  [[0,69,8,.6]],
+  [[0,70,8,.6]],
+  [[0,73,8,.6]],
+  [[0,76,8,.6],[12,71,4,.5]]
+];
+const melBp=[
+  [[0,69,8,.7],[8,73,4,.6],[12,76,4,.65]],
+  [[0,76,4,.7],[4,81,4,.75],[8,80,4,.65],[12,76,4,.55]],
+  [[0,70,8,.7],[8,69,4,.55],[12,68,4,.5]],
+  [[0,74,4,.6],[4,81,4,.75],[8,80,4,.65],[12,78,4,.55]]
+];
+const melOut=[
+  [[0,69,8,.55]],
+  [[0,78,8,.55]],
+  [[0,74,8,.55]],
+  [[0,76,16,.5]]
+];
+let melody=[];
+function addBars(baseBars,arr){ arr.forEach((bar,i)=>bar.forEach(x=>melody.push([(baseBars+i)*16+x[0],x[1],x[2],x[3]]))); }
+addBars(0,melIntro);
+addBars(4,melM4_7); addBars(8,melM8_11);
+addBars(12,melM4_7); addBars(16,melM8_11);
+addBars(20,melB); addBars(24,melB);
+addBars(28,melInt);
+addBars(32,melBp); addBars(36,melBp);
+addBars(40,melOut);
+const pMoon=mkPattern({
+  name:'明月', bpm:72, bars:44,
+  voicings:moonVoicings, bassRoots:moonRoots,
+  melody, kick:steps(44,(b,i)=>i===0||i===8), snare:[], hat:[],
+  ride:steps(44,(b,i)=>i%4===0),
+  bass:[0,8], bassDur:[4,4],
+  strum:true, kickGain:0.5, padLowpass:800, padAttack:0.6, melVoice:'pluck'
+});
+
+function demo(name,artist,hue,label,pattern){
+  return {name,artist,hue,label,art:artFor(hue),duration:pattern.loopLen,pattern};
+}
+state.tracks=[
+  demo('明月','幻音 Demo · 明月主题纯音乐',215,'月',pMoon),
+  demo('晨光微漾','幻音 Demo · Lo-fi Chill',210,'晨',p1),
+  demo('霓虹街角','幻音 Demo · Lo-fi Beats',280,'霓',p2),
+  demo('星河入梦','幻音 Demo · Ambient',190,'星',p3)
+];
+
+/* ---------- 播放控制 ---------- */
+function playBuffer(buf,offset){
+  if(!ac) ensureAudio();
+  const src=ac.createBufferSource();
+  src.buffer=buf; src.connect(master);
+  src.onended=()=>{ if(state.engine==='buffer'&&state.bufferSrc===src) handleEnded(); };
+  src.start(0,offset);
+  state.bufferSrc=src; state.bufferOffset=offset; state.bufferStart=ac.currentTime; state.engine='buffer';
+}
+function stopCurrent(){
+  if(state.bufferSrc){ try{state.bufferSrc.onended=null;state.bufferSrc.stop();}catch(e){} state.bufferSrc=null; }
+  if(synth) synth.setPattern(null);
+  state.engine=null;
+}
+function playTrack(i,offset){
+  ensureAudio();
+  stopCurrent();
+  state.currentIndex=i;
+  const t=state.tracks[i];
+  if(t.buffer) playBuffer(t.buffer,offset||0);
+  else{ synth.setPattern(t.pattern); synth.startFrom(offset||0); state.engine='synth'; }
+  state.playing=true;
+  updateNowUI(); updatePlayUI(); renderPlaylist();
+}
+function togglePlay(){
+  ensureAudio();
+  if(state.playing){ ac.suspend(); state.playing=false; }
+  else{
+    if(state.engine===null) playTrack(state.currentIndex);
+    else{ ac.resume(); state.playing=true; }
+  }
+  updatePlayUI(); renderPlaylist();
+}
+function handleEnded(){
+  if(state.repeat==='one'){
+    const t=state.tracks[state.currentIndex];
+    if(t.buffer) playBuffer(t.buffer,0);
+    else{ synth.setPattern(t.pattern); synth.startFrom(0); state.engine='synth'; }
+    return;
+  }
+  nextTrack();
+}
+function nextTrack(){
+  let idx;
+  if(state.shuffle){
+    let n; do{ n=Math.floor(Math.random()*state.tracks.length); }while(n===state.currentIndex&&state.tracks.length>1);
+    idx=n;
+  }else{
+    idx=(state.currentIndex+1)%state.tracks.length;
+  }
+  if(!state.shuffle&&state.repeat==='none'&&state.currentIndex===state.tracks.length-1&&idx===0){
+    stopCurrent(); state.playing=false; updateNowUI(); updatePlayUI(); renderPlaylist(); return;
+  }
+  playTrack(idx);
+}
+function prevTrack(){
+  ensureAudio();
+  if(playbackPos()>4){ seek(0); return; }
+  playTrack((state.currentIndex-1+state.tracks.length)%state.tracks.length);
+}
+function seek(sec){
+  if(!ac||state.engine===null||!state.tracks.length) return;
+  const dur=currentDur();
+  sec=clamp(sec,0,dur);
+  if(state.engine==='synth') synth.startFrom(sec);
+  else if(state.engine==='buffer'){
+    const t=state.tracks[state.currentIndex];
+    if(t.buffer){ if(state.bufferSrc){ try{state.bufferSrc.onended=null;state.bufferSrc.stop();}catch(e){} } playBuffer(t.buffer,sec); }
+  }
+}
+function playbackPos(){
+  if(!ac) return 0;
+  if(state.engine==='synth'&&synth&&synth.pattern){
+    const L=synth.pattern.loopLen;
+    return ((ac.currentTime-synth.startT)%L+L)%L;
+  }
+  if(state.engine==='buffer'&&state.bufferSrc) return state.bufferOffset+(ac.currentTime-state.bufferStart);
+  return 0;
+}
+function currentDur(){ const t=state.tracks[state.currentIndex]; return t?t.duration||0:0; }
+
+/* ---------- UI ---------- */
+const disc=$('#disc'), discArt=$('#discArt'), discLabel=$('#discLabel');
+const meta=$('#meta'), titleEl=$('#trackTitle'), artistEl=$('#trackArtist');
+const playBtn=$('#playBtn'), prevBtn=$('#prevBtn'), nextBtn=$('#nextBtn');
+const curEl=$('#curTime'), totEl=$('#totTime');
+const fill=$('#progressFill'), knob=$('#progressKnob'), progress=$('#progress');
+const volInp=$('#volInp'), muteBtn=$('#muteBtn');
+const pl=$('#playlist'), shuffleBtn=$('#shuffleBtn'), repeatBtn=$('#repeatBtn');
+const importBtn=$('#importBtn'), fileInput=$('#fileInput'), card=$('#card');
+
+function updateNowUI(){
+  const t=state.tracks[state.currentIndex]; if(!t) return;
+  titleEl.textContent=t.name;
+  artistEl.textContent=t.artist;
+  discArt.style.background=t.art;
+  discLabel.textContent=(t.label||'♪');
+  disc.classList.toggle('paused',!state.playing);
+  totEl.textContent=fmt(t.duration||0);
+  curEl.textContent=fmt(0);
+  fill.style.width='0%'; knob.style.left='0%';
+  meta.classList.toggle('playing',state.playing);
+}
+function updatePlayUI(){
+  playBtn.innerHTML=state.playing?IC.pause:IC.play;
+  disc.classList.toggle('paused',!state.playing);
+  meta.classList.toggle('playing',state.playing);
+  repeatBtn.innerHTML=state.repeat==='one'?IC.repeat1:IC.repeat;
+  repeatBtn.classList.toggle('on',state.repeat!=='none');
+  shuffleBtn.classList.toggle('on',state.shuffle);
+  muteBtn.innerHTML=state.muted?IC.mute:IC.vol;
+  volInp.value=state.muted?0:state.volume;
+}
+function renderPlaylist(){
+  pl.innerHTML='';
+  state.tracks.forEach((t,i)=>{
+    const li=document.createElement('li');
+    if(i===state.currentIndex) li.className='active';
+    const cov=document.createElement('div'); cov.className='cover'; cov.style.background=t.art; cov.textContent='♪';
+    const info=document.createElement('div'); info.className='t-info';
+    const n=document.createElement('div'); n.className='name'; n.textContent=t.name;
+    const a=document.createElement('div'); a.className='artist'; a.textContent=t.artist;
+    info.append(n,a);
+    const dur=document.createElement('span'); dur.className='dur'; dur.textContent=fmt(t.duration||0);
+    const eq=document.createElement('span'); eq.className='eq-bars';
+    eq.innerHTML='<span></span><span></span><span></span><span></span><span></span>';
+    eq.style.display=(i===state.currentIndex&&state.playing)?'inline-flex':'none';
+    li.append(cov,info,dur,eq);
+    li.addEventListener('click',()=>{ i===state.currentIndex?togglePlay():playTrack(i); });
+    pl.appendChild(li);
+  });
+}
+
+/* ---------- 可视化 ---------- */
+const cv=$('#viz'), ctx=cv.getContext('2d');
+let rot=0;
+function fitCanvas(){ dpr=Math.min(2,window.devicePixelRatio||1); cv.width=380*dpr; cv.height=380*dpr; }
+fitCanvas();
+function drawViz(){
+  requestAnimationFrame(drawViz);
+  const W=380,H=380, cx=W/2, cy=H/2, N=56;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+  if(analyser&&freq) analyser.getByteFrequencyData(freq);
+  for(let i=0;i<N;i++){
+    const v=freq?freq[Math.floor(i*(freq.length/N))]/255:0;
+    const a=i/N*Math.PI*2+rot;
+    const h=6+v*30;
+    const hue=i/N*300+200;
+    ctx.strokeStyle=`hsla(${hue},90%,${60+v*20}%,${0.15+v*0.85})`;
+    ctx.lineWidth=3; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*150,cy+Math.sin(a)*150);
+    ctx.lineTo(cx+Math.cos(a)*(150+h),cy+Math.sin(a)*(150+h));
+    ctx.stroke();
+  }
+  rot+=0.003;
+  if(ac&&state.playing&&state.tracks.length){
+    const pos=playbackPos(), dur=currentDur();
+    const frac=dur>0?Math.min(1,pos/dur):0;
+    if(!state.dragging){ fill.style.width=(frac*100)+'%'; knob.style.left=(frac*100)+'%'; curEl.textContent=fmt(pos); }
+    totEl.textContent=fmt(dur);
+  }
+}
+drawViz();
+
+/* ---------- 事件绑定 ---------- */
+playBtn.addEventListener('click',togglePlay);
+prevBtn.addEventListener('click',prevTrack);
+nextBtn.addEventListener('click',nextTrack);
+
+progress.addEventListener('pointerdown',e=>{ state.dragging=true; progress.classList.add('dragging'); progress.setPointerCapture(e.pointerId); seekFromPointer(e); });
+progress.addEventListener('pointermove',e=>{ if(state.dragging) seekFromPointer(e); });
+['pointerup','pointercancel'].forEach(ev=>progress.addEventListener(ev,()=>{ state.dragging=false; progress.classList.remove('dragging'); }));
+function seekFromPointer(e){
+  const r=progress.getBoundingClientRect();
+  const frac=clamp((e.clientX-r.left)/r.width,0,1);
+  const dur=currentDur();
+  fill.style.width=(frac*100)+'%'; knob.style.left=(frac*100)+'%';
+  seek(frac*dur);
+}
+
+volInp.addEventListener('input',()=>{
+  state.volume=parseFloat(volInp.value);
+  if(ac) master.gain.value=state.volume;
+  state.muted=state.volume===0;
+  updatePlayUI();
+});
+muteBtn.addEventListener('click',()=>{
+  state.muted=!state.muted;
+  if(ac) master.gain.value=state.muted?0:state.volume;
+  updatePlayUI();
+});
+
+shuffleBtn.addEventListener('click',()=>{ state.shuffle=!state.shuffle; updatePlayUI(); });
+repeatBtn.addEventListener('click',()=>{
+  state.repeat=state.repeat==='all'?'one':(state.repeat==='one'?'none':'all');
+  updatePlayUI();
+});
+
+importBtn.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{ addFiles(e.target.files); fileInput.value=''; });
+['dragenter','dragover'].forEach(ev=>card.addEventListener(ev,e=>{e.preventDefault();card.classList.add('dragging');}));
+['dragleave','drop'].forEach(ev=>card.addEventListener(ev,e=>{e.preventDefault();card.classList.remove('dragging');}));
+card.addEventListener('drop',e=>{ if(e.dataTransfer&&e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+
+async function addFiles(files){
+  ensureAudio();
+  for(const f of files){
+    if(!/audio\//.test(f.type)&&!/\.(mp3|wav|ogg|m4a|flac|aac|opus|weba)$/i.test(f.name)) continue;
+    try{
+      const buf=await f.arrayBuffer();
+      const audio=await ac.decodeAudioData(buf);
+      const name=f.name.replace(/\.[^.]+$/,'');
+      let hue=0; for(const c of name) hue=(hue*31+c.charCodeAt(0))%360;
+      state.tracks.push({name,artist:'本地音乐',hue,label:'♪',art:artFor(hue),duration:audio.duration,buffer:audio});
+    }catch(err){ console.warn('无法解码音频：',f.name,err); }
+  }
+  renderPlaylist();
+}
+
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+  if(e.code==='Space'){ e.preventDefault(); togglePlay(); }
+  else if(e.key==='ArrowRight'){ seek(playbackPos()+5); }
+  else if(e.key==='ArrowLeft'){ seek(playbackPos()-5); }
+  else if(e.key==='ArrowUp'){ changeVol(0.05); }
+  else if(e.key==='ArrowDown'){ changeVol(-0.05); }
+});
+function changeVol(d){
+  state.volume=clamp(state.volume+d,0,1);
+  if(ac) master.gain.value=state.volume;
+  state.muted=state.volume===0;
+  updatePlayUI();
+}
+
+/* ---------- 初始化 ---------- */
+state.currentIndex=0;
+updateNowUI(); updatePlayUI(); renderPlaylist();
+
+})();
+</script>
+</body>
+</html>
