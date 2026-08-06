@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>清风随笔</title>
+<style>
+/* ==========================================
+   RESET & VARIABLES
+   ========================================== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#FDF8F0;
+  --bg-soft:#F7F1E9;
+  --card-bg:#FFFFFF;
+  --nav-bg:rgba(253,248,240,0.94);
+  --accent:#6B9080;
+  --accent-hover:#5A7D6E;
+  --accent-soft:#E6F0E8;
+  --tag-bg:#E6F0E8;
+  --tag-text:#6B9080;
+  --title:#2D3A3A;
+  --text:#4A5555;
+  --text-muted:#8A9595;
+  --border:#E8DDD0;
+  --border-light:#F0E8DA;
+  --shadow:0 2px 16px rgba(0,0,0,0.05);
+  --shadow-hover:0 4px 24px rgba(0,0,0,0.1);
+  --input-bg:#FFFFFF;
+  --input-border:#D0C8B8;
+  --font-serif:"Noto Serif SC","STSong","SimSun","KaiTi",serif;
+  --font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  --nav-height:64px;
+  --max-width:800px;
+  --radius:12px;
+  --radius-sm:8px;
+}
+
+[data-theme="dark"]{
+  --bg:#1A1D23;
+  --bg-soft:#1F2229;
+  --card-bg:#242830;
+  --nav-bg:rgba(26,29,35,0.94);
+  --accent:#E8A87C;
+  --accent-hover:#D4956B;
+  --accent-soft:#3A2A28;
+  --tag-bg:#3A2A28;
+  --tag-text:#E8A87C;
+  --title:#E8D5C4;
+  --text:#B0AFA8;
+  --text-muted:#6A6C70;
+  --border:#353840;
+  --border-light:#2D3038;
+  --shadow:0 2px 16px rgba(0,0,0,0.25);
+  --shadow-hover:0 4px 24px rgba(0,0,0,0.4);
+  --input-bg:#2D303A;
+  --input-border:#454850;
+}
+
+html{scroll-behavior:smooth}
+
+body{
+  font-family:var(--font-sans);
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.7;
+  min-height:100vh;
+  transition:background 0.35s,color 0.35s;
+}
+
+a{color:var(--accent);text-decoration:none;transition:color 0.2s}
+a:hover{color:var(--accent-hover)}
+
+/* ==========================================
+   NAVIGATION
+   ========================================== */
+nav{
+  position:sticky;top:0;z-index:100;
+  height:var(--nav-height);
+  background:var(--nav-bg);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border-light);
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;
+  transition:background 0.35s,border-color 0.35s;
+}
+
+.nav-brand{
+  font-family:var(--font-serif);
+  font-size:1.35rem;
+  font-weight:700;
+  color:var(--title);
+  letter-spacing:0.05em;
+  display:flex;align-items:center;gap:8px;
+}
+
+.nav-brand::before{content:"✍";font-size:1rem}
+
+.nav-links{display:flex;align-items:center;gap:8px;list-style:none}
+
+.nav-links a{
+  padding:8px 16px;
+  border-radius:var(--radius-sm);
+  color:var(--text);
+  font-size:0.95rem;
+  transition:all 0.2s;
+}
+
+.nav-links a:hover,
+.nav-links a.active{
+  background:var(--accent-soft);
+  color:var(--accent);
+}
+
+#theme-toggle{
+  background:none;border:1px solid var(--border);
+  cursor:pointer;font-size:1.15rem;
+  padding:6px 10px;border-radius:var(--radius-sm);
+  transition:all 0.2s;
+  line-height:1;
+}
+
+#theme-toggle:hover{background:var(--accent-soft);border-color:var(--accent)}
+
+.menu-btn{
+  display:none;background:none;border:none;
+  color:var(--text);font-size:1.5rem;cursor:pointer;
+  padding:4px 8px;
+}
+
+/* ==========================================
+   MAIN CONTENT
+   ========================================== */
+main{
+  max-width:var(--max-width);
+  margin:0 auto;
+  padding:32px 24px 80px;
+  min-height:calc(100vh - var(--nav-height));
+}
+
+/* ==========================================
+   HOME — Search & Filter
+   ========================================== */
+.home-header{
+  text-align:center;
+  padding:32px 0 20px;
+}
+
+.home-header h1{
+  font-family:var(--font-serif);
+  font-size:2rem;
+  color:var(--title);
+  margin-bottom:8px;
+}
+
+.home-header p{color:var(--text-muted);font-size:0.95rem}
+
+.search-wrap{
+  position:relative;
+  max-width:480px;
+  margin:0 auto 28px;
+}
+
+.search-wrap input{
+  width:100%;
+  padding:12px 16px 12px 42px;
+  border:1.5px solid var(--input-border);
+  border-radius:var(--radius);
+  background:var(--input-bg);
+  color:var(--text);
+  font-size:0.95rem;
+  font-family:var(--font-sans);
+  transition:all 0.25s;
+  outline:none;
+}
+
+.search-wrap input:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+
+.search-wrap input::placeholder{color:var(--text-muted)}
+
+.search-wrap .search-icon{
+  position:absolute;left:14px;top:50%;
+  transform:translateY(-50%);
+  color:var(--text-muted);
+  font-size:1.05rem;
+  pointer-events:none;
+}
+
+/* Tags */
+.tags-bar{
+  display:flex;flex-wrap:wrap;gap:8px;
+  justify-content:center;
+  margin-bottom:28px;
+}
+
+.tags-bar .tag{
+  padding:6px 14px;
+  border-radius:20px;
+  font-size:0.85rem;
+  background:var(--tag-bg);
+  color:var(--tag-text);
+  cursor:pointer;
+  transition:all 0.2s;
+  border:1.5px solid transparent;
+  user-select:none;
+}
+
+.tags-bar .tag:hover{opacity:0.85}
+.tags-bar .tag.active{
+  background:var(--accent);
+  color:#FFF;
+  border-color:var(--accent);
+}
+
+/* ==========================================
+   POST CARDS
+   ========================================== */
+.post-list{display:flex;flex-direction:column;gap:16px}
+
+.post-card{
+  background:var(--card-bg);
+  border:1px solid var(--border-light);
+  border-radius:var(--radius);
+  padding:22px 24px;
+  cursor:pointer;
+  transition:all 0.25s;
+  box-shadow:var(--shadow);
+}
+
+.post-card:hover{
+  box-shadow:var(--shadow-hover);
+  transform:translateY(-2px);
+  border-color:var(--accent);
+}
+
+.post-card h3{
+  font-family:var(--font-serif);
+  font-size:1.2rem;
+  color:var(--title);
+  margin-bottom:4px;
+}
+
+.post-card .meta{
+  font-size:0.85rem;
+  color:var(--text-muted);
+  margin-bottom:10px;
+}
+
+.post-card .preview{
+  font-family:var(--font-serif);
+  color:var(--text);
+  font-size:0.95rem;
+  line-height:1.8;
+  opacity:0.8;
+  margin-bottom:12px;
+}
+
+.post-card .card-tags{
+  display:flex;flex-wrap:wrap;gap:6px;
+}
+
+.post-card .card-tags span{
+  font-size:0.78rem;
+  padding:3px 10px;
+  border-radius:12px;
+  background:var(--tag-bg);
+  color:var(--tag-text);
+}
+
+.empty-state{
+  text-align:center;padding:60px 20px;
+  color:var(--text-muted);
+  font-size:1.05rem;
+}
+
+.empty-state .icon{font-size:3rem;margin-bottom:12px;display:block}
+
+/* ==========================================
+   DETAIL PAGE
+   ========================================== */
+.back-link{
+  display:inline-flex;align-items:center;gap:6px;
+  color:var(--text-muted);font-size:0.9rem;
+  margin-bottom:24px;
+  padding:6px 12px;
+  border-radius:var(--radius-sm);
+  transition:all 0.2s;
+}
+
+.back-link:hover{background:var(--accent-soft);color:var(--accent)}
+
+.detail-header{text-align:center;margin-bottom:32px}
+
+.detail-header h1{
+  font-family:var(--font-serif);
+  font-size:2rem;
+  color:var(--title);
+  margin-bottom:6px;
+}
+
+.detail-header .meta{
+  color:var(--text-muted);
+  font-size:0.9rem;
+}
+
+.detail-header .detail-tags{
+  display:flex;flex-wrap:wrap;gap:6px;
+  justify-content:center;
+  margin-top:14px;
+}
+
+.detail-header .detail-tags span{
+  font-size:0.8rem;padding:4px 12px;border-radius:14px;
+  background:var(--tag-bg);color:var(--tag-text);
+  cursor:pointer;transition:all 0.2s;
+}
+
+.detail-header .detail-tags span:hover{
+  background:var(--accent);color:#FFF;
+}
+
+/* Poem content */
+.poem-content{
+  max-width:520px;
+  margin:0 auto 40px;
+  text-align:center;
+}
+
+.poem-content p{
+  font-family:var(--font-serif);
+  font-size:1.3rem;
+  color:var(--title);
+  line-height:2.2;
+  letter-spacing:0.04em;
+}
+
+/* Article content (for future use) */
+.article-content{
+  max-width:680px;
+  margin:0 auto 40px;
+}
+
+.article-content p{
+  font-size:1rem;
+  color:var(--text);
+  line-height:1.9;
+  margin-bottom:16px;
+  text-indent:2em;
+}
+
+/* ==========================================
+   WORKS PAGE
+   ========================================== */
+.page-title{
+  font-family:var(--font-serif);
+  font-size:1.8rem;
+  color:var(--title);
+  text-align:center;
+  margin-bottom:8px;
+}
+
+.page-subtitle{
+  text-align:center;color:var(--text-muted);
+  margin-bottom:32px;font-size:0.95rem;
+}
+
+.works-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:20px;
+}
+
+.work-card{
+  background:var(--card-bg);
+  border:1px solid var(--border-light);
+  border-radius:var(--radius);
+  padding:24px;
+  box-shadow:var(--shadow);
+  transition:all 0.25s;
+  display:flex;flex-direction:column;gap:12px;
+}
+
+.work-card:hover{
+  box-shadow:var(--shadow-hover);
+  transform:translateY(-2px);
+  border-color:var(--accent);
+}
+
+.work-card .work-icon{
+  font-size:2.2rem;
+  width:52px;height:52px;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);
+  border-radius:var(--radius-sm);
+  color:var(--accent);
+}
+
+.work-card h3{
+  font-family:var(--font-serif);
+  font-size:1.15rem;
+  color:var(--title);
+}
+
+.work-card p{font-size:0.88rem;color:var(--text-muted);line-height:1.6}
+
+.work-card .btn{
+  display:inline-flex;align-items:center;gap:6px;
+  align-self:flex-start;
+  padding:8px 18px;
+  border-radius:var(--radius-sm);
+  background:var(--accent);
+  color:#FFF;
+  font-size:0.88rem;
+  font-weight:500;
+  transition:all 0.2s;
+  text-decoration:none;
+  margin-top:auto;
+}
+
+.work-card .btn:hover{
+  background:var(--accent-hover);
+  color:#FFF;
+  transform:translateX(2px);
+}
+
+/* ==========================================
+   ABOUT PAGE
+   ========================================== */
+.about-section{
+  max-width:600px;
+  margin:0 auto;
+}
+
+.about-card{
+  background:var(--card-bg);
+  border:1px solid var(--border-light);
+  border-radius:var(--radius);
+  padding:28px 30px;
+  box-shadow:var(--shadow);
+  margin-bottom:20px;
+}
+
+.about-card h2{
+  font-family:var(--font-serif);
+  font-size:1.3rem;
+  color:var(--title);
+  margin-bottom:12px;
+  display:flex;align-items:center;gap:8px;
+}
+
+.about-card p{color:var(--text);line-height:1.8;font-size:0.95rem}
+
+.about-card code{
+  background:var(--accent-soft);
+  color:var(--accent);
+  padding:3px 10px;
+  border-radius:6px;
+  font-size:0.9rem;
+  font-family:inherit;
+}
+
+.gh-links{
+  display:flex;flex-direction:column;gap:12px;
+  margin-top:8px;
+}
+
+.gh-link{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 18px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border-light);
+  background:var(--bg-soft);
+  transition:all 0.2s;
+  color:var(--text);
+  text-decoration:none;
+}
+
+.gh-link:hover{
+  border-color:var(--accent);
+  background:var(--accent-soft);
+}
+
+.gh-link .gh-avatar{
+  width:40px;height:40px;
+  border-radius:50%;
+  background:var(--accent-soft);
+  color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:1.1rem;
+  flex-shrink:0;
+}
+
+.gh-link .gh-info strong{
+  color:var(--title);
+  font-size:1rem;
+}
+
+.gh-link .gh-info span{
+  color:var(--text-muted);
+  font-size:0.85rem;
+}
+
+/* ==========================================
+   FOOTER
+   ========================================== */
+footer{
+  text-align:center;padding:24px;
+  color:var(--text-muted);font-size:0.82rem;
+  border-top:1px solid var(--border-light);
+}
+
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(16px)}
+  to{opacity:1;transform:translateY(0)}
+}
+
+.fade-up{animation:fadeUp 0.4s ease-out}
+
+/* ==========================================
+   RESPONSIVE
+   ========================================== */
+@media(max-width:640px){
+  nav{padding:0 16px}
+  .nav-brand{font-size:1.15rem}
+  .nav-links{display:none}
+  .nav-links.open{
+    display:flex;flex-direction:column;
+    position:absolute;top:var(--nav-height);
+    left:0;right:0;
+    background:var(--nav-bg);
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border-light);
+    padding:12px 16px;
+    gap:4px;
+  }
+  .nav-links.open a{width:100%;text-align:center}
+  .menu-btn{display:block}
+
+  main{padding:24px 16px 60px}
+
+  .home-header h1{font-size:1.5rem}
+  .post-card{padding:16px 18px}
+  .post-card h3{font-size:1.05rem}
+  .works-grid{grid-template-columns:1fr}
+
+  .poem-content p{font-size:1.1rem;line-height:2}
+  .detail-header h1{font-size:1.5rem}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="#/" class="nav-brand" onclick="navigate(event,'/')">清风随笔</a>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="menu-btn" onclick="toggleMenu()" aria-label="菜单">☰</button>
+    <div class="nav-links" id="navLinks">
+      <a href="#/" data-route="/" onclick="navigate(event,'/')">首页</a>
+      <a href="#/works" data-route="/works" onclick="navigate(event,'/works')">经典作品</a>
+      <a href="#/about" data-route="/about" onclick="navigate(event,'/about')">关于</a>
+    </div>
+    <button id="theme-toggle" onclick="toggleTheme()" aria-label="切换主题">🌙</button>
+  </div>
+</nav>
+
+<main id="app"></main>
+
+<footer>© 2026 清风随笔 — Powered by GitHub Pages</footer>
+
+<script>
+/* ==========================================
+   DATA — 诗词文章数据集
+   结构设计通用化：type 区分诗词/文章，
+   content 统一为字符串数组，
+   未来替换为文章只需改 data 即可。
+   ========================================== */
+const posts = [
+  {
+    id:1,title:"静夜思",author:"李白",date:"唐",
+    type:"诗",
+    content:["床前明月光，","疑是地上霜。","举头望明月，","低头思故乡。"],
+    tags:["思乡","月亮","夜景"],
+    category:"唐诗"
+  },
+  {
+    id:2,title:"登鹳雀楼",author:"王之涣",date:"唐",
+    type:"诗",
+    content:["白日依山尽，","黄河入海流。","欲穷千里目，","更上一层楼。"],
+    tags:["山水","哲理"],
+    category:"唐诗"
+  },
+  {
+    id:3,title:"春晓",author:"孟浩然",date:"唐",
+    type:"诗",
+    content:["春眠不觉晓，","处处闻啼鸟。","夜来风雨声，","花落知多少。"],
+    tags:["春天","田园"],
+    category:"唐诗"
+  },
+  {
+    id:4,title:"江雪",author:"柳宗元",date:"唐",
+    type:"诗",
+    content:["千山鸟飞绝，","万径人踪灭。","孤舟蓑笠翁，","独钓寒江雪。"],
+    tags:["山水","冬天"],
+    category:"唐诗"
+  },
+  {
+    id:5,title:"枫桥夜泊",author:"张继",date:"唐",
+    type:"诗",
+    content:["月落乌啼霜满天，","江枫渔火对愁眠。","姑苏城外寒山寺，","夜半钟声到客船。"],
+    tags:["夜景","思乡"],
+    category:"唐诗"
+  },
+  {
+    id:6,title:"望庐山瀑布",author:"李白",date:"唐",
+    type:"诗",
+    content:["日照香炉生紫烟，","遥看瀑布挂前川。","飞流直下三千尺，","疑是银河落九天。"],
+    tags:["山水","咏物"],
+    category:"唐诗"
+  },
+  {
+    id:7,title:"送元二使安西",author:"王维",date:"唐",
+    type:"诗",
+    content:["渭城朝雨浥轻尘，","客舍青青柳色新。","劝君更尽一杯酒，","西出阳关无故人。"],
+    tags:["送别","友情"],
+    category:"唐诗"
+  },
+  {
+    id:8,title:"黄鹤楼送孟浩然之广陵",author:"李白",date:"唐",
+    type:"诗",
+    content:["故人西辞黄鹤楼，","烟花三月下扬州。","孤帆远影碧空尽，","唯见长江天际流。"],
+    tags:["送别","友情"],
+    category:"唐诗"
+  },
+  {
+    id:9,title:"出塞",author:"王昌龄",date:"唐",
+    type:"诗",
+    content:["秦时明月汉时关，","万里长征人未还。","但使龙城飞将在，","不教胡马度阴山。"],
+    tags:["边塞","咏史"],
+    category:"唐诗"
+  },
+  {
+    id:10,title:"悯农",author:"李绅",date:"唐",
+    type:"诗",
+    content:["锄禾日当午，","汗滴禾下土。","谁知盘中餐，","粒粒皆辛苦。"],
+    tags:["田园","哲理"],
+    category:"唐诗"
+  },
+  {
+    id:11,title:"水调歌头·明月几时有",author:"苏轼",date:"北宋",
+    type:"词",
+    content:[
+      "明月几时有？把酒问青天。",
+      "不知天上宫阙，今夕是何年。",
+      "我欲乘风归去，又恐琼楼玉宇，高处不胜寒。",
+      "起舞弄清影，何似在人间。",
+      "转朱阁，低绮户，照无眠。",
+      "不应有恨，何事长向别时圆？",
+      "人有悲欢离合，月有阴晴圆缺，此事古难全。",
+      "但愿人长久，千里共婵娟。"
+    ],
+    tags:["月亮","哲理","豪放"],
+    category:"宋词"
+  },
+  {
+    id:12,title:"声声慢·寻寻觅觅",author:"李清照",date:"南宋",
+    type:"词",
+    content:[
+      "寻寻觅觅，冷冷清清，凄凄惨惨戚戚。",
+      "乍暖还寒时候，最难将息。",
+      "三杯两盏淡酒，怎敌他、晚来风急？",
+      "雁过也，正伤心，却是旧时相识。",
+      "满地黄花堆积。憔悴损，如今有谁堪摘？",
+      "守着窗儿，独自怎生得黑？",
+      "梧桐更兼细雨，到黄昏、点点滴滴。",
+      "这次第，怎一个愁字了得！"
+    ],
+    tags:["爱情","婉约","秋天"],
+    category:"宋词"
+  },
+  {
+    id:13,title:"青玉案·元夕",author:"辛弃疾",date:"南宋",
+    type:"词",
+    content:[
+      "东风夜放花千树。更吹落、星如雨。",
+      "宝马雕车香满路。",
+      "凤箫声动，玉壶光转，一夜鱼龙舞。",
+      "蛾儿雪柳黄金缕。笑语盈盈暗香去。",
+      "众里寻他千百度。",
+      "蓦然回首，那人却在，灯火阑珊处。"
+    ],
+    tags:["爱情","夜景","豪放"],
+    category:"宋词"
+  },
+  {
+    id:14,title:"念奴娇·赤壁怀古",author:"苏轼",date:"北宋",
+    type:"词",
+    content:[
+      "大江东去，浪淘尽，千古风流人物。",
+      "故垒西边，人道是，三国周郎赤壁。",
+      "乱石穿空，惊涛拍岸，卷起千堆雪。",
+      "江山如画，一时多少豪杰。",
+      "遥想公瑾当年，小乔初嫁了，雄姿英发。",
+      "羽扇纶巾，谈笑间，樯橹灰飞烟灭。",
+      "故国神游，多情应笑我，早生华发。",
+      "人生如梦，一尊还酹江月。"
+    ],
+    tags:["咏史","豪放"],
+    category:"宋词"
+  },
+  {
+    id:15,title:"雨霖铃·寒蝉凄切",author:"柳永",date:"北宋",
+    type:"词",
+    content:[
+      "寒蝉凄切，对长亭晚，骤雨初歇。",
+      "都门帐饮无绪，留恋处，兰舟催发。",
+      "执手相看泪眼，竟无语凝噎。",
+      "念去去，千里烟波，暮霭沉沉楚天阔。",
+      "多情自古伤离别，更那堪，冷落清秋节！",
+      "今宵酒醒何处？杨柳岸，晓风残月。",
+      "此去经年，应是良辰好景虚设。",
+      "便纵有千种风情，更与何人说？"
+    ],
+    tags:["送别","爱情","婉约"],
+    category:"宋词"
+  },
+  {
+    id:16,title:"如梦令·常记溪亭日暮",author:"李清照",date:"南宋",
+    type:"词",
+    content:[
+      "常记溪亭日暮，沉醉不知归路。",
+      "兴尽晚回舟，误入藕花深处。",
+      "争渡，争渡，惊起一滩鸥鹭。"
+    ],
+    tags:["山水","婉约"],
+    category:"宋词"
+  },
+  {
+    id:17,title:"饮酒·其五",author:"陶渊明",date:"东晋",
+    type:"诗",
+    content:[
+      "结庐在人境，而无车马喧。",
+      "问君何能尔？心远地自偏。",
+      "采菊东篱下，悠然见南山。",
+      "山气日夕佳，飞鸟相与还。",
+      "此中有真意，欲辨已忘言。"
+    ],
+    tags:["田园","哲理"],
+    category:"古诗"
+  },
+  {
+    id:18,title:"将进酒",author:"李白",date:"唐",
+    type:"诗",
+    content:[
+      "君不见，黄河之水天上来，奔流到海不复回。",
+      "君不见，高堂明镜悲白发，朝如青丝暮成雪。",
+      "人生得意须尽欢，莫使金樽空对月。",
+      "天生我材必有用，千金散尽还复来。",
+      "烹羊宰牛且为乐，会须一饮三百杯。",
+      "岑夫子，丹丘生，将进酒，杯莫停。",
+      "与君歌一曲，请君为我倾耳听。",
+      "钟鼓馔玉不足贵，但愿长醉不复醒。",
+      "古来圣贤皆寂寞，惟有饮者留其名。",
+      "陈王昔时宴平乐，斗酒十千恣欢谑。",
+      "主人何为言少钱，径须沽取对君酌。",
+      "五花马，千金裘，呼儿将出换美酒，与尔同销万古愁。"
+    ],
+    tags:["豪放","哲理"],
+    category:"唐诗"
+  }
+];
+
+/* 经典作品数据 */
+const works = [
+  {title:"迷宫",desc:"探索随机生成的迷宫，挑战你的方向感与记忆力。",icon:"🏰",url:"https://120615982.top/hollow-halls.html"},
+  {title:"贪吃蛇",desc:"经典贪吃蛇游戏，简约流畅的操控体验。",icon:"🐍",url:"https://120615982.top/snake.html"},
+  {title:"象棋",desc:"中国象棋对弈，策略与智慧的较量。",icon:"♟️",url:"https://120615982.top/chess.html"},
+  {title:"五子棋",desc:"五子连珠，老少皆宜的棋类游戏。",icon:"⚫",url:"https://120615982.top/makefive.html"},
+  {title:"文章集",desc:"技术文章与心得笔记合集。",icon:"📚",url:"https://120615982.top/bz.html"},
+  {title:"更多作品",desc:"访问个人主页，浏览全部项目与实验作品。",icon:"🚀",url:"https://120615982.top",isMore:true}
+];
+
+/* 收集所有标签 */
+const allTags = [...new Set(posts.flatMap(p=>p.tags))].sort();
+
+/* ==========================================
+   THEME
+   ========================================== */
+function getTheme(){return localStorage.getItem('theme')||'light'}
+function setTheme(t){
+  localStorage.setItem('theme',t);
+  document.documentElement.setAttribute('data-theme',t);
+  const btn = document.getElementById('theme-toggle');
+  btn.textContent = t==='dark'?'☀️':'🌙';
+  btn.setAttribute('aria-label',t==='dark'?'切换亮色主题':'切换暗色主题');
+}
+function toggleTheme(){
+  setTheme(getTheme()==='dark'?'light':'dark');
+}
+
+/* ==========================================
+   ROUTER
+   ========================================== */
+let currentFilter = null; /* {type:'tag'|'category'|'search', value} */
+
+function parseHash(){
+  const h = location.hash.replace('#','') || '/';
+  if(h==='/') return {page:'home'};
+  if(h.startsWith('/poem/')) return {page:'detail',id:parseInt(h.split('/')[2])};
+  if(h.startsWith('/tag/')) return {page:'tag',value:decodeURIComponent(h.split('/').slice(2).join('/'))};
+  if(h.startsWith('/category/')) return {page:'category',value:decodeURIComponent(h.split('/').slice(2).join('/'))};
+  if(h==='/works') return {page:'works'};
+  if(h==='/about') return {page:'about'};
+  return {page:'home'};
+}
+
+function navigate(e,path){
+  if(e){e.preventDefault()}
+  if(path==='/') currentFilter = null;
+  location.hash = path;
+  closeMenu();
+}
+
+/* ==========================================
+   RENDER — 渲染引擎
+   ========================================== */
+function render(){
+  const route = parseHash();
+  const app = document.getElementById('app');
+  const links = document.querySelectorAll('.nav-links a');
+
+  const isHomeView = route.page==='home'||route.page==='tag'||route.page==='category';
+  links.forEach(a=>{
+    const href = a.getAttribute('data-route');
+    a.classList.toggle('active', isHomeView ? href==='/' : href===('/'+route.page));
+  });
+
+  switch(route.page){
+    case 'home': app.innerHTML = renderHome(); break;
+    case 'detail': app.innerHTML = renderDetail(route.id); break;
+    case 'tag': app.innerHTML = renderFiltered('tag',route.value); break;
+    case 'category': app.innerHTML = renderFiltered('category',route.value); break;
+    case 'works': app.innerHTML = renderWorks(); break;
+    case 'about': app.innerHTML = renderAbout(); break;
+    default: app.innerHTML = renderHome();
+  }
+
+  /* 重新绑定搜索事件 */
+  const input = document.getElementById('searchInput');
+  if(input){
+    input.addEventListener('input',debounce(onSearch,200));
+  }
+}
+
+/* ==========================================
+   PAGES
+   ========================================== */
+function renderHome(){
+  const filtered = getFilteredPosts();
+  const tagsHtml = allTags.map(t=>{
+    const active = currentFilter && currentFilter.type==='tag' && currentFilter.value===t;
+    return `<span class="tag${active?' active':''}" onclick="filterByTag('${t}')">${t}</span>`;
+  }).join('');
+
+  let listHtml = '';
+  if(filtered.length===0){
+    listHtml = `<div class="empty-state fade-up"><span class="icon">📭</span>没有找到匹配的诗词</div>`;
+  }else{
+    listHtml = filtered.map(p=>`
+      <div class="post-card fade-up" onclick="navigate(null,'/poem/${p.id}')">
+        <h3>${p.title}</h3>
+        <div class="meta">${p.author} · ${p.date} · ${p.category}</div>
+        <div class="preview">${p.content.slice(0,2).join('<br>')}${p.content.length>2?'<br>…':''}</div>
+        <div class="card-tags">${p.tags.map(t=>`<span>${t}</span>`).join('')}</div>
+      </div>
+    `).join('');
+  }
+
+  const activeFilterLabel = currentFilter
+    ? `<div style="text-align:center;margin-bottom:16px">
+        <span style="color:var(--text-muted);font-size:0.9rem">筛选：</span>
+        <span style="color:var(--accent);font-weight:500">${currentFilter.label}</span>
+        <a href="#/" style="margin-left:8px;font-size:0.85rem;cursor:pointer" onclick="clearFilter()">✕ 清除</a>
+      </div>`
+    : '';
+
+  return `
+    <div class="home-header fade-up">
+      <h1>诗词雅集</h1>
+      <p>共收录 ${posts.length} 首诗词，品味千年文脉</p>
+    </div>
+    <div class="search-wrap fade-up">
+      <span class="search-icon">🔍</span>
+      <input id="searchInput" type="text" placeholder="搜索标题、作者、内容..." value="${currentFilter&&currentFilter.type==='search'?currentFilter.value:''}">
+    </div>
+    <div class="tags-bar fade-up">${tagsHtml}</div>
+    ${activeFilterLabel}
+    <div class="post-list">${listHtml}</div>
+  `;
+}
+
+function renderDetail(id){
+  const p = posts.find(x=>x.id===id);
+  if(!p) return `<div class="empty-state"><span class="icon">😕</span>未找到该诗词<br><a href="#/">返回首页</a></div>`;
+
+  const isPoem = p.type==='诗'||p.type==='词'||p.type==='古诗';
+  const contentHtml = p.content.map(line=>`<p>${line}</p>`).join('');
+  const contentCls = isPoem?'poem-content':'article-content';
+
+  return `
+    <a href="#/" class="back-link fade-up" onclick="navigate(event,'/')">← 返回列表</a>
+    <div class="detail-header fade-up">
+      <h1>${p.title}</h1>
+      <div class="meta">${p.author} · ${p.date} · ${p.category}</div>
+      <div class="detail-tags">
+        ${p.tags.map(t=>`<span onclick="filterByTag('${t}')">${t}</span>`).join('')}
+      </div>
+    </div>
+    <div class="${contentCls} fade-up">${contentHtml}</div>
+  `;
+}
+
+function renderFiltered(type,value){
+  currentFilter = {type,value,label:value};
+  return renderHome();
+}
+
+function renderWorks(){
+  const cardsHtml = works.map((w,i)=>`
+    <div class="work-card fade-up" style="animation-delay:${i*0.06}s">
+      <div class="work-icon">${w.icon}</div>
+      <h3>${w.title}</h3>
+      <p>${w.desc}</p>
+      <a href="${w.url}" target="_blank" class="btn">${w.isMore?'前往主页':'开始体验'} →</a>
+    </div>
+  `).join('');
+
+  return `
+    <h1 class="page-title fade-up">经典作品</h1>
+    <p class="page-subtitle fade-up">一些精心打造的小程序与游戏作品</p>
+    <div class="works-grid">${cardsHtml}</div>
+  `;
+}
+
+function renderAbout(){
+  return `
+    <h1 class="page-title fade-up">关于</h1>
+    <p class="page-subtitle fade-up">关于我和这个网站</p>
+    <div class="about-section fade-up">
+      <div class="about-card">
+        <h2>👋 在哪里找到我？</h2>
+        <p>你可以搜索我的 GitHub 账号，访问我的全部作品：</p>
+        <div class="gh-links">
+          <a href="https://github.com/hellosky982" target="_blank" class="gh-link">
+            <span class="gh-avatar">H1</span>
+            <div class="gh-info">
+              <strong>hellosky982</strong>
+              <span>github.com/hellosky982</span>
+            </div>
+          </a>
+          <a href="https://github.com/hellosky983" target="_blank" class="gh-link">
+            <span class="gh-avatar">H2</span>
+            <div class="gh-info">
+              <strong>hellosky983</strong>
+              <span>github.com/hellosky983</span>
+            </div>
+          </a>
+        </div>
+      </div>
+      <div class="about-card">
+        <h2>📝 关于本站</h2>
+        <p>目前收录了一些喜爱的古典诗词作为内容展示。未来将逐步替换为原创文章与技术分享。本站使用纯 HTML / CSS / JavaScript 构建，托管于 GitHub Pages。</p>
+      </div>
+    </div>
+  `;
+}
+
+/* ==========================================
+   FILTER & SEARCH
+   ========================================== */
+function getFilteredPosts(){
+  let result = [...posts];
+  if(currentFilter){
+    if(currentFilter.type==='tag'){
+      result = result.filter(p=>p.tags.includes(currentFilter.value));
+    }else if(currentFilter.type==='category'){
+      result = result.filter(p=>p.category===currentFilter.value);
+    }else if(currentFilter.type==='search'){
+      const q = currentFilter.value.toLowerCase();
+      result = result.filter(p=>
+        p.title.toLowerCase().includes(q)||
+        p.author.toLowerCase().includes(q)||
+        p.content.join('').toLowerCase().includes(q)||
+        p.tags.some(t=>t.toLowerCase().includes(q))
+      );
+    }
+  }
+  return result;
+}
+
+function filterByTag(tag){
+  location.hash = '#/tag/'+encodeURIComponent(tag);
+}
+
+function clearFilter(){
+  currentFilter = null;
+  location.hash = '#/';
+}
+
+function renderPostList(container){
+  const filtered = getFilteredPosts();
+  if(filtered.length===0){
+    container.innerHTML = `<div class="empty-state"><span class="icon">📭</span>没有找到匹配的诗词</div>`;
+  }else{
+    container.innerHTML = filtered.map(p=>`
+      <div class="post-card fade-up" onclick="navigate(null,'/poem/${p.id}')">
+        <h3>${p.title}</h3>
+        <div class="meta">${p.author} · ${p.date} · ${p.category}</div>
+        <div class="preview">${p.content.slice(0,2).join('<br>')}${p.content.length>2?'<br>…':''}</div>
+        <div class="card-tags">${p.tags.map(t=>'<span>'+t+'</span>').join('')}</div>
+      </div>
+    `).join('');
+  }
+}
+
+function renderFilterLabel(container){
+  let el = document.getElementById('filterLabel');
+  if(currentFilter && currentFilter.type==='search'){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'filterLabel';
+      el.style.cssText = 'text-align:center;margin-bottom:16px';
+      container.parentNode.insertBefore(el, container);
+    }
+    el.innerHTML = `<span style="color:var(--text-muted);font-size:0.9rem">筛选：</span>
+      <span style="color:var(--accent);font-weight:500">${currentFilter.label}</span>
+      <a href="#/" style="margin-left:8px;font-size:0.85rem;cursor:pointer" onclick="event.preventDefault();clearFilter()">✕ 清除</a>`;
+  }else{
+    if(el) el.remove();
+  }
+}
+
+function onSearch(e){
+  const q = e.target.value.trim();
+  if(q){
+    currentFilter = {type:'search',value:q,label:'搜索：'+q};
+  }else{
+    currentFilter = null;
+  }
+  const list = document.querySelector('.post-list');
+  if(list){
+    renderPostList(list);
+    renderFilterLabel(list);
+  }
+}
+
+function debounce(fn,ms){
+  let timer;
+  return function(...args){
+    clearTimeout(timer);
+    timer = setTimeout(()=>fn.apply(this,args),ms);
+  };
+}
+
+/* ==========================================
+   MOBILE MENU
+   ========================================== */
+function toggleMenu(){
+  document.getElementById('navLinks').classList.toggle('open');
+}
+function closeMenu(){
+  document.getElementById('navLinks').classList.remove('open');
+}
+
+/* ==========================================
+   INIT
+   ========================================== */
+function init(){
+  setTheme(getTheme());
+  window.addEventListener('hashchange',render);
+  render();
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+
+</body>
+</html>
