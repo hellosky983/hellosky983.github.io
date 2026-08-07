@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>将棋 人机对战</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Noto Serif JP","Yu Mincho","SimSun","Microsoft YaHei",serif;background:#f3e9d8;color:#3a2f1f;min-height:100vh;display:flex;justify-content:center}
+#app{width:min(96vw,720px);padding:10px 8px 24px}
+h1{text-align:center;font-size:20px;letter-spacing:6px;margin:4px 0 2px}
+.tip{text-align:center;font-size:12px;color:#8a6a42;margin-bottom:4px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;margin:8px 0}
+.controls button,.controls select{font-size:13px;padding:5px 10px;border-radius:6px;border:1px solid #b08d5f;background:#fff8ec;color:#4a3520;cursor:pointer}
+.controls button:hover{background:#f0d9b0}
+.controls label{font-size:13px;color:#6b5336;display:flex;align-items:center;gap:4px}
+#status{text-align:center;font-size:16px;min-height:24px;margin:2px 0}
+#status.check{color:#c0392b;font-weight:bold}
+#result{text-align:center;font-size:18px;font-weight:bold;color:#8e44ad;min-height:24px;margin-bottom:2px}
+.hand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;align-items:center;min-height:40px;margin:4px 0;padding:4px 8px;background:rgba(176,141,95,.16);border-radius:8px}
+.hand .label{font-size:12px;color:#8a6a42;margin-right:2px}
+.pbtn{font-size:15px;min-width:40px;padding:4px 8px;border-radius:6px;cursor:pointer;border:1px solid #a47c48;font-family:inherit;line-height:1.3}
+.pbtn.black{background:#3b4252;color:#f2efe9}
+.pbtn.white{background:#fbf3e3;color:#4a3520}
+.pbtn.sel{outline:3px solid #f1c40f;outline-offset:1px}
+.pbtn.dim{opacity:.3;pointer-events:none}
+#board{width:min(74vmin,620px);margin:0 auto;display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:1;background:#d9a45f;border:5px solid #8a5a2b;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.cell{position:relative;border:1px solid #8a5a2b;display:flex;align-items:center;justify-content:center;cursor:default}
+.cell.star::after{content:'';position:absolute;width:8px;height:8px;background:#8a5a2b;border-radius:50%}
+.cell.target{background:rgba(46,204,113,.35)!important;cursor:pointer}
+.cell.target.capture{background:rgba(231,76,60,.35)!important;cursor:pointer}
+.cell.selected{outline:3px solid #f1c40f;outline-offset:-3px}
+.cell.lastFrom,.cell.lastTo{box-shadow:inset 0 0 0 3px rgba(41,128,185,.55)}
+.cell.inCheck{background:rgba(192,57,43,.35)}
+.piece{width:84%;height:84%;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:clamp(13px,4.4vmin,24px);user-select:none;line-height:1;box-shadow:0 2px 3px rgba(0,0,0,.3)}
+.piece.black{background:#3b4252;color:#f2efe9;border:1px solid #23272f}
+.piece.white{background:#fbf3e3;color:#4a3520;border:1px solid #a47c48}
+.piece.promo{border:2px solid #c0392b}
+#promoDialog{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10;align-items:center;justify-content:center}
+#promoDialog.show{display:flex}
+.promoBox{background:#fff8ec;padding:18px 24px;border-radius:10px;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.promoBox .msg{margin-bottom:12px;font-size:15px}
+.promoBox button{font-size:15px;margin:0 6px;padding:7px 18px;border-radius:6px;border:1px solid #b08d5f;background:#f7e8cd;cursor:pointer}
+.promoBox button:hover{background:#eed3a3}
+</style>
+</head>
+<body>
+<div id="app">
+<h1>将棋 · 人机对战</h1>
+<div class="tip">点击己方棋子或持驹选择，再点击目标格行棋；进入对方阵地（最后3行）时可选择升级</div>
+<div class="controls">
+<button id="btnNew">新游戏</button>
+<button id="btnUndo">悔棋</button>
+<button id="btnFlip">翻转棋盘</button>
+<label>执子<select id="selSide"><option value="0">先手（黑）</option><option value="1">后手（白）</option></select></label>
+<label>难度<select id="selLevel"><option value="1">简单</option><option value="2" selected>普通</option><option value="3">困难</option></select></label>
+</div>
+<div id="status"></div>
+<div id="result"></div>
+<div class="hand"><span class="label">上方持驹</span><span id="handTop"></span></div>
+<div id="board"></div>
+<div class="hand"><span class="label">下方持驹</span><span id="handBottom"></span></div>
+</div>
+<div id="promoDialog"><div class="promoBox"><div class="msg" id="promoMsg"></div><button id="btnPromo">成（升级）</button><button id="btnNoPromo">不成</button></div></div>
+<script>
+'use strict';
+const B=0,W=1;
+const MATE=1000000;
+const VAL={R:900,PR:1000,B:800,PB:900,G:600,S:500,PS:700,N:400,PN:650,L:300,PL:550,P:100,PT:600,K:0};
+const PROMOTE={R:'PR',B:'PB',S:'PS',N:'PN',L:'PL',P:'PT'};
+const BASETYPE={PR:'R',PB:'B',PS:'S',PN:'N',PL:'L',PT:'P'};
+const NAME={R:'飛',B:'角',G:'金',S:'銀',N:'桂',L:'香',P:'歩',PR:'龍',PB:'馬',PS:'成銀',PN:'成桂',PL:'成香',PT:'と'};
+const ALL8=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]];
+const ORTHO=[[1,0],[-1,0],[0,1],[0,-1]];
+const DIAG=[[1,1],[1,-1],[-1,1],[-1,-1]];
+const GOLD=[[0,1],[1,1],[-1,1],[1,0],[-1,0],[0,-1]];
+const SILVER=[[0,1],[1,1],[-1,1],[1,-1],[-1,-1]];
+const PROMOTABLE={R:1,B:1,S:1,N:1,L:1,P:1};
+let board,hand,turn,history,posCounts;
+let playerColor=0,facing=0,level=2,thinking=false,gameOver=false,selected=null,lastMove=null,resultText='',legalCache=[],promoCands=null,gameId=0;
+
+function positionKey(){
+  let s='';
+  for(let f=0;f<9;f++)for(let r=0;r<9;r++){
+    const p=board[f][r];
+    s+=p?(p.color===B?'B':'W')+p.type:'.';
+  }
+  s+='|';
+  for(let c=0;c<2;c++)s+=(c===B?'B:':'W:')+hand[c].slice().sort().join(',')+';';
+  s+='|'+turn;
+  return s;
+}
+
+function initGame(){
+  gameId++;
+  board=Array.from({length:9},()=>Array(9).fill(null));
+  hand=[[],[]];
+  const back=['L','N','S','G','K','G','S','N','L'];
+  for(let f=0;f<9;f++){
+    board[f][8]={color:B,type:back[f]};
+    board[f][0]={color:W,type:back[f]};
+    board[f][6]={color:B,type:'P'};
+    board[f][2]={color:W,type:'P'};
+  }
+  board[1][7]={color:B,type:'R'};
+  board[7][7]={color:B,type:'B'};
+  board[7][1]={color:W,type:'R'};
+  board[1][1]={color:W,type:'B'};
+  turn=B;
+  history=[];
+  posCounts={};
+  thinking=false;gameOver=false;selected=null;lastMove=null;resultText='';legalCache=[];promoCands=null;
+  posCounts[positionKey()]=1;
+}
+
+function steps(p,f,r,deltas){
+  const out=[];
+  for(const d of deltas){
+    const nf=f+d[0],nr=r+d[1];
+    if(nf<0||nf>8||nr<0||nr>8)continue;
+    const q=board[nf][nr];
+    if(q&&q.color===p.color)continue;
+    out.push([nf,nr]);
+  }
+  return out;
+}
+function slides(f,r,dirs,color){
+  const out=[];
+  for(const d of dirs){
+    let nf=f+d[0],nr=r+d[1];
+    while(nf>=0&&nf<9&&nr>=0&&nr<9){
+      const q=board[nf][nr];
+      if(q){
+        if(q.color!==color)out.push([nf,nr]);
+        break;
+      }
+      out.push([nf,nr]);
+      nf+=d[0];nr+=d[1];
+    }
+  }
+  return out;
+}
+function pseudoMoves(p,f,r){
+  const d=p.color===B?-1:1;
+  switch(p.type){
+    case 'K':return steps(p,f,r,ALL8);
+    case 'R':return slides(f,r,ORTHO,p.color);
+    case 'PR':return slides(f,r,ORTHO,p.color).concat(steps(p,f,r,DIAG));
+    case 'B':return slides(f,r,DIAG,p.color);
+    case 'PB':return slides(f,r,DIAG,p.color).concat(steps(p,f,r,ORTHO));
+    case 'G':case 'PS':case 'PN':case 'PL':case 'PT':
+      return steps(p,f,r,GOLD.map(a=>[a[0],a[1]*d]));
+    case 'S':return steps(p,f,r,SILVER.map(a=>[a[0],a[1]*d]));
+    case 'N':return steps(p,f,r,[[1,2*d],[-1,2*d]]);
+    case 'L':return slides(f,r,[[0,d]],p.color);
+    case 'P':return steps(p,f,r,[[0,d]]);
+  }
+  return [];
+}
+function inZone(color,r){return color===B?r<=2:r>=6;}
+function promoOptions(p,to){
+  if(!PROMOTABLE[p.type])return[false];
+  if(!inZone(p.color,to[1]))return[false];
+  const c=p.color;
+  const forced=(p.type==='N'&&(c===B?to[1]<=1:to[1]>=7))||((p.type==='L'||p.type==='P')&&(c===B?to[1]===0:to[1]===8));
+  return forced?[true]:[false,true];
+}
+function dropOk(t,color,f,r){
+  if(t==='P'){
+    if(color===B?r===0:r===8)return false;
+    for(let rr=0;rr<9;rr++){
+      const q=board[f][rr];
+      if(q&&q.color===color&&q.type==='P')return false;
+    }
+  }else if(t==='L'){
+    if(color===B?r===0:r===8)return false;
+  }else if(t==='N'){
+    if(color===B?r<=1:r>=7)return false;
+  }
+  return true;
+}
+function applyMove(m){
+  const nf=m.to[0],nr=m.to[1];
+  if(m.drop){
+    const idx=hand[m.color].indexOf(m.type);
+    if(idx>=0)hand[m.color].splice(idx,1);
+    board[nf][nr]={color:m.color,type:m.type};
+    m.cap=null;
+  }else{
+    const f=m.from[0],r=m.from[1];
+    const p=board[f][r];
+    board[f][r]=null;
+    m.cap=board[nf][nr];
+    if(m.cap)hand[m.color].push(BASETYPE[m.cap.type]||m.cap.type);
+    board[nf][nr]={color:m.color,type:m.promote?PROMOTE[p.type]:p.type};
+  }
+}
+function undoMove(m){
+  const nf=m.to[0],nr=m.to[1];
+  if(m.drop){
+    board[nf][nr]=null;
+    hand[m.color].push(m.type);
+  }else{
+    const f=m.from[0],r=m.from[1];
+    const p=board[nf][nr];
+    board[nf][nr]=m.cap;
+    board[f][r]={color:m.color,type:m.promote?BASETYPE[p.type]:p.type};
+    if(m.cap)hand[m.color].pop();
+  }
+}
+function attacked(f,r,byColor){
+  const d=byColor===B?-1:1;
+  if(r-d>=0&&r-d<9){
+    const q=board[f][r-d];
+    if(q&&q.color===byColor&&q.type==='P')return true;
+  }
+  for(const df of[-1,1]){
+    const ff=f+df,rr=r-2*d;
+    if(ff>=0&&ff<9&&rr>=0&&rr<9){
+      const q=board[ff][rr];
+      if(q&&q.color===byColor&&q.type==='N')return true;
+    }
+  }
+  {
+    let rr=r-d;
+    while(rr>=0&&rr<9){
+      const q=board[f][rr];
+      if(q){
+        if(q.color===byColor&&q.type==='L')return true;
+        break;
+      }
+      rr+=d;
+    }
+  }
+  for(const a of[[0,-d],[1,-d],[-1,-d],[1,0],[-1,0],[0,d]]){
+    const ff=f+a[0],rr=r+a[1];
+    if(ff<0||ff>8||rr<0||rr>8)continue;
+    const q=board[ff][rr];
+    if(q&&q.color===byColor&&(q.type==='G'||q.type==='PS'||q.type==='PN'||q.type==='PL'||q.type==='PT'))return true;
+  }
+  for(const a of[[0,-d],[1,-d],[-1,-d],[1,d],[-1,d]]){
+    const ff=f+a[0],rr=r+a[1];
+    if(ff<0||ff>8||rr<0||rr>8)continue;
+    const q=board[ff][rr];
+    if(q&&q.color===byColor&&q.type==='S')return true;
+  }
+  for(const a of ALL8){
+    const ff=f+a[0],rr=r+a[1];
+    if(ff<0||ff>8||rr<0||rr>8)continue;
+    const q=board[ff][rr];
+    if(q&&q.color===byColor&&q.type==='K')return true;
+  }
+  for(const a of[[1,0],[-1,0],[0,1],[0,-1]]){
+    let ff=f+a[0],rr=r+a[1];
+    while(ff>=0&&ff<9&&rr>=0&&rr<9){
+      const q=board[ff][rr];
+      if(q){
+        if(q.color===byColor&&(q.type==='R'||q.type==='PR'))return true;
+        break;
+      }
+      ff+=a[0];rr+=a[1];
+    }
+  }
+  for(const a of[[1,1],[1,-1],[-1,1],[-1,-1]]){
+    let ff=f+a[0],rr=r+a[1];
+    while(ff>=0&&ff<9&&rr>=0&&rr<9){
+      const q=board[ff][rr];
+      if(q){
+        if(q.color===byColor&&(q.type==='B'||q.type==='PB'))return true;
+        break;
+      }
+      ff+=a[0];rr+=a[1];
+    }
+  }
+  return false;
+}
+function findKing(color){
+  for(let f=0;f<9;f++)for(let r=0;r<9;r++){
+    const p=board[f][r];
+    if(p&&p.color===color&&p.type==='K')return[f,r];
+  }
+  return null;
+}
+function inCheck(color){
+  const k=findKing(color);
+  return k?attacked(k[0],k[1],1-color):false;
+}
+function genLegalMoves(color,skipUchi){
+  const moves=[];
+  for(let f=0;f<9;f++)for(let r=0;r<9;r++){
+    const p=board[f][r];
+    if(!p||p.color!==color)continue;
+    for(const mv of pseudoMoves(p,f,r)){
+      for(const pr of promoOptions(p,mv)){
+        moves.push({color,drop:false,from:[f,r],to:mv,promote:pr,type:p.type,capT:board[mv[0]][mv[1]]});
+      }
+    }
+  }
+  const seen={};
+  for(const t of hand[color]){
+    if(seen[t])continue;
+    seen[t]=true;
+    for(let f=0;f<9;f++)for(let r=0;r<9;r++){
+      if(board[f][r])continue;
+      if(!dropOk(t,color,f,r))continue;
+      moves.push({color,drop:true,from:null,to:[f,r],promote:false,type:t,capT:null});
+    }
+  }
+  const out=[];
+  for(const m of moves){
+    applyMove(m);
+    let legal=!inCheck(color);
+    if(legal&&m.drop&&m.type==='P'&&!skipUchi&&inCheck(1-color)){
+      const resp=genLegalMoves(1-color,true);
+      if(resp.length===0)legal=false;
+    }
+    undoMove(m);
+    if(legal)out.push(m);
+  }
+  return out;
+}
+function pieceScore(p,f,r){
+  if(p.color===W)return pieceScore({type:p.type},8-f,8-r);
+  const t=p.type;
+  let v=VAL[t]||0;
+  if(t==='P'){if(r<=2)v+=380;else v+=(6-r)*15;}
+  else if(t==='S')v+=(r>3?(r-3)*10:0)-Math.abs(f-4)*4;
+  else if(t==='N'||t==='L')v+=(r>3?(r-3)*12:0);
+  else if(t==='G')v+=(r-4)*8-Math.abs(f-4)*3;
+  else if(t==='R'||t==='PR')v+=(r>3?(r-4)*12:0);
+  else if(t==='B'||t==='PB')v+=(r>3?(r-4)*10:0);
+  else if(t==='K'){if(r>=6&&f<=2)v+=40;else v-=(6-r)*8;}
+  return v;
+}
+function evalPos(){
+  let s=0;
+  for(let f=0;f<9;f++)for(let r=0;r<9;r++){
+    const p=board[f][r];
+    if(p)s+=(p.color===B?1:-1)*pieceScore(p,f,r);
+  }
+  for(const t of hand[B])s+=VAL[t];
+  for(const t of hand[W])s-=VAL[t];
+  return s;
+}
+function orderMoves(moves){
+  for(const m of moves){
+    let s=0;
+    if(m.capT)s+=10*(VAL[BASETYPE[m.capT.type]||m.capT.type]||0);
+    if(m.promote)s+=1;
+    m._s=s;
+  }
+  moves.sort((a,b)=>b._s-a._s);
+}
+const ABORT={};
+let nodes=0,abortAt=0;
+function negamax(color,depth,alpha,beta){
+  nodes++;
+  if(depth===0)return evalPos()*(color===B?1:-1);
+  if((nodes&1023)===0&&Date.now()>abortAt)throw ABORT;
+  const moves=genLegalMoves(color);
+  if(moves.length===0)return -MATE;
+  orderMoves(moves);
+  let best=-MATE*2;
+  for(const m of moves){
+    applyMove(m);
+    let score;
+    try{
+      score=-negamax(1-color,depth-1,-beta,-alpha);
+    }catch(e){
+      undoMove(m);
+      throw e;
+    }
+    undoMove(m);
+    if(score>best)best=score;
+    if(score>alpha)alpha=score;
+    if(alpha>=beta)break;
+  }
+  return best;
+}
+function timeBudget(){return level===1?300:level===2?1200:2000;}
+function aiPickMove(){
+  const color=turn;
+  const moves=genLegalMoves(color);
+  if(moves.length===0)return null;
+  const depth=level;
+  orderMoves(moves);
+  nodes=0;
+  abortAt=Date.now()+timeBudget();
+  let best=null,bestScore=-MATE*2;
+  try{
+    for(const m of moves){
+      applyMove(m);
+      const s=-negamax(1-color,depth-1,-MATE*2,MATE*2);
+      undoMove(m);
+      if(s>bestScore||(s===bestScore&&Math.random()<0.2)){bestScore=s;best=m;}
+    }
+  }catch(e){
+    if(e!==ABORT)throw e;
+  }
+  return best||moves[0];
+}
+function makeMove(m){
+  applyMove(m);
+  history.push(m);
+  lastMove=m;
+  turn=1-turn;
+  const key=positionKey();
+  posCounts[key]=(posCounts[key]||0)+1;
+  checkEnd();
+}
+function checkEnd(){
+  const opp=turn;
+  const ms=genLegalMoves(opp);
+  if(ms.length===0){
+    gameOver=true;
+    const mate=inCheck(opp);
+    if(opp===playerColor)resultText=mate?'你被将死（诘），AI 获胜！':'你无路可走（行詰），AI 获胜！';
+    else resultText=mate?'将死（诘）！你获胜！':'对方无路可走（行詰），你获胜！';
+    return;
+  }
+  const key=positionKey();
+  if((posCounts[key]||0)>=4){gameOver=true;resultText='千日手 —— 和棋';}
+}
+function doUndo(){
+  if(thinking||history.length===0)return;
+  do{
+    const m=history.pop();
+    const key=positionKey();
+    posCounts[key]=Math.max(0,(posCounts[key]||1)-1);
+    undoMove(m);
+    turn=1-turn;
+  }while(history.length>0&&turn!==playerColor);
+  lastMove=history.length?history[history.length-1]:null;
+  gameOver=false;resultText='';selected=null;promoCands=null;
+  document.getElementById('promoDialog').classList.remove('show');
+}
+function statusText(){
+  if(gameOver)return '';
+  let s=(turn===B?'先手（黑）':'后手（白）')+' 行棋';
+  if(turn===playerColor)s+=' · 你的回合';
+  else s+=' · AI 思考中';
+  if(inCheck(turn))s+=' · 王手！';
+  return s;
+}
+function commitMove(m){
+  makeMove(m);
+  if(gameOver){render();return;}
+  if(turn!==playerColor){
+    thinking=true;
+    render();
+    const id=gameId;
+    setTimeout(()=>{
+      if(id!==gameId)return;
+      const mv=aiPickMove();
+      thinking=false;
+      if(mv)makeMove(mv);
+      render();
+    },60);
+  }
+}
+function maybeAiStart(){
+  if(turn!==playerColor&&!gameOver){
+    thinking=true;
+    render();
+    const id=gameId;
+    setTimeout(()=>{
+      if(id!==gameId)return;
+      const mv=aiPickMove();
+      thinking=false;
+      if(mv)makeMove(mv);
+      render();
+    },300);
+  }
+}
+function onHandClick(owner,type){
+  if(gameOver||thinking||turn!==playerColor||owner!==playerColor)return;
+  if(selected&&selected.kind==='hand'&&selected.type===type){selected=null;render();return;}
+  selected={kind:'hand',type};
+  render();
+}
+function onCellClick(f,r){
+  if(gameOver||thinking||turn!==playerColor)return;
+  const p=board[f][r];
+  if(selected){
+    if(selected.kind==='board'){
+      if(selected.f===f&&selected.r===r){selected=null;render();return;}
+      const cands=legalCache.filter(m=>!m.drop&&m.from[0]===selected.f&&m.from[1]===selected.r&&m.to[0]===f&&m.to[1]===r);
+      if(cands.length){
+        if(cands.length===1){selected=null;commitMove(cands[0]);return;}
+        promoCands=cands;
+        document.getElementById('promoMsg').textContent='将「'+NAME[p.type]+'」升级为「'+NAME[PROMOTE[p.type]]+'」吗？';
+        document.getElementById('promoDialog').classList.add('show');
+        return;
+      }
+    }else{
+      const cands=legalCache.filter(m=>m.drop&&m.type===selected.type&&m.to[0]===f&&m.to[1]===r);
+      if(cands.length){selected=null;commitMove(cands[0]);return;}
+    }
+  }
+  if(p&&p.color===playerColor){selected={kind:'board',f,r};render();return;}
+  render();
+}
+function buildBoardDOM(){
+  const b=document.getElementById('board');
+  b.innerHTML='';
+  for(let di=0;di<9;di++)for(let ci=0;ci<9;ci++){
+    const div=document.createElement('div');
+    div.className='cell';
+    const f=facing===0?ci:8-ci;
+    const r=facing===0?di:8-di;
+    div.dataset.f=f;div.dataset.r=r;
+    div.addEventListener('click',()=>onCellClick(f,r));
+    b.appendChild(div);
+  }
+}
+function renderHand(id,owner){
+  const el=document.getElementById(id);
+  el.innerHTML='';
+  const counts={};
+  for(const t of hand[owner])counts[t]=(counts[t]||0)+1;
+  for(const t in counts){
+    const btn=document.createElement('button');
+    const col=1-owner;
+    btn.className='pbtn '+(col===B?'black':'white')+(owner!==playerColor?' dim':'');
+    btn.textContent=NAME[t]+(counts[t]>1?'×'+counts[t]:'');
+    if((facing===0&&owner===B)||(facing===1&&owner===W))btn.style.transform='rotate(180deg)';
+    if(selected&&selected.kind==='hand'&&selected.type===t)btn.classList.add('sel');
+    btn.onclick=()=>onHandClick(owner,t);
+    el.appendChild(btn);
+  }
+}
+function render(){
+  legalCache=(turn===playerColor&&!gameOver&&!thinking)?genLegalMoves(playerColor):[];
+  const targets=new Set();
+  if(selected){
+    if(selected.kind==='board'){
+      for(const m of legalCache)if(!m.drop&&m.from[0]===selected.f&&m.from[1]===selected.r)targets.add(m.to[0]+','+m.to[1]);
+    }else{
+      for(const m of legalCache)if(m.drop&&m.type===selected.type)targets.add(m.to[0]+','+m.to[1]);
+    }
+  }
+  const cells=document.querySelectorAll('#board .cell');
+  for(const cell of cells){
+    const f=+cell.dataset.f,r=+cell.dataset.r,p=board[f][r];
+    let cls='cell';
+    if((f===2&&r===2)||(f===6&&r===2)||(f===4&&r===4)||(f===2&&r===6)||(f===6&&r===6))cls+=' star';
+    if(lastMove){
+      if(lastMove.from&&lastMove.from[0]===f&&lastMove.from[1]===r)cls+=' lastFrom';
+      if(lastMove.to[0]===f&&lastMove.to[1]===r)cls+=' lastTo';
+    }
+    if(selected&&selected.kind==='board'&&selected.f===f&&selected.r===r)cls+=' selected';
+    const tk=f+','+r;
+    if(targets.has(tk)){
+      cls+=' target';
+      if(p&&p.color!==playerColor)cls+=' capture';
+    }
+    if(p&&p.type==='K'&&inCheck(p.color))cls+=' inCheck';
+    cell.className=cls;
+    cell.innerHTML='';
+    if(p){
+      const pv=document.createElement('div');
+      pv.className='piece '+(p.color===B?'black':'white')+(p.type.length>1?' promo':'');
+      pv.textContent=p.type==='K'?(p.color===B?'王':'玉'):NAME[p.type];
+      if((facing===0&&p.color===W)||(facing===1&&p.color===B))pv.style.transform='rotate(180deg)';
+      cell.appendChild(pv);
+    }
+  }
+  renderHand('handTop',facing===0?W:B);
+  renderHand('handBottom',facing===0?B:W);
+  const st=document.getElementById('status');
+  st.textContent=statusText();
+  st.className=inCheck(turn)&&!gameOver?'check':'';
+  document.getElementById('result').textContent=resultText;
+}
+document.getElementById('btnNew').onclick=()=>{playerColor=+document.getElementById('selSide').value;facing=playerColor===B?0:1;initGame();buildBoardDOM();render();maybeAiStart();};
+document.getElementById('btnUndo').onclick=()=>{if(thinking)return;doUndo();render();};
+document.getElementById('btnFlip').onclick=()=>{facing=1-facing;buildBoardDOM();render();};
+document.getElementById('selSide').onchange=()=>{playerColor=+document.getElementById('selSide').value;facing=playerColor===B?0:1;initGame();buildBoardDOM();render();maybeAiStart();};
+document.getElementById('selLevel').onchange=()=>{level=+document.getElementById('selLevel').value;};
+document.getElementById('btnPromo').onclick=()=>{
+  if(!promoCands)return;
+  const m=promoCands.find(x=>x.promote)||promoCands[0];
+  promoCands=null;
+  document.getElementById('promoDialog').classList.remove('show');
+  selected=null;
+  commitMove(m);
+};
+document.getElementById('btnNoPromo').onclick=()=>{
+  if(!promoCands)return;
+  const m=promoCands.find(x=>!x.promote)||promoCands[0];
+  promoCands=null;
+  document.getElementById('promoDialog').classList.remove('show');
+  selected=null;
+  commitMove(m);
+};
+initGame();
+buildBoardDOM();
+render();
+maybeAiStart();
+</script>
+</body>
+</html>
