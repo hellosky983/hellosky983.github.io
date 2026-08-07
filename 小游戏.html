@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小游戏合集</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: linear-gradient(160deg, #141e30, #243b55);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    user-select: none;
+  }
+  .topbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .topbar button {
+    padding: 9px 16px;
+    font-size: 14px;
+    border: none;
+    border-radius: 22px;
+    cursor: pointer;
+    font-weight: bold;
+    color: #fff;
+    background: rgba(255,255,255,.14);
+    box-shadow: 0 4px 10px rgba(0,0,0,.25);
+    transition: transform .1s, background .2s;
+  }
+  .topbar button:hover { background: rgba(255,255,255,.24); }
+  .topbar button.active { background: linear-gradient(135deg, #f7971e, #ffd200); color: #fff; }
+  .screen { display: none; width: 100%; flex-direction: column; align-items: center; }
+  .screen.active { display: flex; }
+  h1 { color: #fff; font-size: 24px; letter-spacing: 4px; margin-bottom: 6px; text-shadow: 0 2px 8px rgba(0,0,0,.4); }
+  .stats { display: flex; gap: 22px; color: #cfe0ff; font-size: 14px; margin-bottom: 12px; }
+  .stats b { color: #ffd966; font-size: 19px; margin-left: 4px; }
+  .btns { margin-top: 14px; display: flex; gap: 14px; }
+  button.btn {
+    padding: 10px 24px; font-size: 14px; border: none; border-radius: 26px;
+    cursor: pointer; font-weight: bold; letter-spacing: 2px; color: #fff;
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    box-shadow: 0 5px 14px rgba(0,0,0,.3);
+  }
+  button.btn:active { transform: scale(.95); }
+  button.btn.secondary { background: linear-gradient(135deg, #43cea2, #185a9d); }
+  .modal {
+    background: #fff; border-radius: 20px; padding: 30px 42px; text-align: center;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .modal h2 { font-size: 28px; margin-bottom: 10px; }
+  .modal h2.gold { color: #f7971e; }
+  .modal h2.green { color: #2bbfa0; }
+  .modal h2.red { color: #f5532d; }
+  .modal p { color: #666; margin-bottom: 22px; font-size: 15px; }
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.75); display: none; align-items: center; justify-content: center; z-index: 99; }
+  .overlay.show { display: flex; }
+
+  .ws-board { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 720px; padding: 16px; background: rgba(255,255,255,.08); border-radius: 18px; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+  .ws-tube {
+    width: 52px; height: 164px; position: relative; cursor: pointer; border-radius: 9px 9px 16px 16px;
+    border: 3px solid rgba(255,255,255,.85); border-top: 2px solid rgba(255,255,255,.85);
+    background: linear-gradient(to right, rgba(0,0,0,.25), rgba(0,0,0,.12));
+    overflow: hidden; transition: transform .12s ease, box-shadow .12s ease; box-shadow: 0 4px 10px rgba(0,0,0,.35);
+  }
+  .ws-tube.selected { transform: translateY(-10px) scale(1.05); box-shadow: 0 12px 24px rgba(255,255,255,.35), 0 4px 10px rgba(0,0,0,.35); }
+  .ws-tube.shake { animation: ws-shake .4s; }
+  .ws-tube.win { border-color: #7CFC00; box-shadow: 0 0 16px rgba(124,252,0,.8); }
+  .ws-seg { position: absolute; left: 0; width: 100%; transition: top .35s cubic-bezier(.5,.1,.3,1.3); }
+  .ws-tip { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 18px; height: 6px; background: rgba(255,255,255,.35); border-radius: 3px; }
+  @keyframes ws-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+  .bb-gridWrap { background: rgba(255,255,255,.1); padding: 10px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); margin-bottom: 14px; }
+  .bb-grid { display: grid; grid-template-columns: repeat(8, 46px); grid-template-rows: repeat(8, 46px); gap: 4px; }
+  .bb-cell { width: 46px; height: 46px; border-radius: 8px; background: rgba(255,255,255,.07); }
+  .bb-cell.filled { box-shadow: inset 0 -4px 0 rgba(0,0,0,.25), inset 0 4px 0 rgba(255,255,255,.25); }
+  .bb-cell.hl { background: rgba(255,255,255,.4); }
+  .bb-cell.hl.bad { background: rgba(255,80,80,.65); }
+  .bb-tray { display: flex; gap: 14px; justify-content: center; align-items: center; min-height: 100px; min-width: 280px; background: rgba(255,255,255,.08); padding: 12px 16px; border-radius: 14px; }
+  .bb-piece { position: relative; cursor: grab; touch-action: none; }
+  .bb-pcell { width: 40px; height: 40px; border-radius: 7px; position: absolute; box-shadow: inset 0 -4px 0 rgba(0,0,0,.2), inset 0 4px 0 rgba(255,255,255,.2); }
+  .bb-ghost { position: fixed; pointer-events: none; display: none; z-index: 60; }
+  @keyframes bb-pop { 50% { transform: scale(1.15); } }
+
+  .tm-board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: rgba(255,255,255,.12); padding: 14px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.3); max-width: 400px; width: 100%; margin-bottom: 14px; }
+  .tm-stack { position: relative; width: 82px; height: 110px; }
+  .tm-tile {
+    position: absolute; width: 70px; height: 70px; border-radius: 15px;
+    display: flex; align-items: center; justify-content: center; font-size: 40px;
+    background: linear-gradient(145deg, #fff8e7, #ffe0a3);
+    box-shadow: 0 4px 8px rgba(0,0,0,.35), inset 0 -3px 0 rgba(0,0,0,.12);
+    cursor: pointer; transition: transform .15s, box-shadow .15s, filter .15s;
+  }
+  .tm-tile.covered { filter: brightness(.75) saturate(.8); cursor: default; }
+  .tm-tile.top:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,.4); }
+  .tm-tile.grab { animation: tm-grab .3s; }
+  .tm-tile.boom { animation: tm-boom .5s forwards; }
+  @keyframes tm-grab { 50% { transform: translateY(-14px) scale(1.1); } }
+  @keyframes tm-boom { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.8); opacity: 0; } }
+  .tm-trayBar { display: flex; gap: 7px; align-items: center; justify-content: center; min-height: 74px; min-width: 280px; background: rgba(255,255,255,.14); padding: 8px 14px; border-radius: 16px; box-shadow: inset 0 2px 8px rgba(0,0,0,.25); }
+  .tm-slot { width: 42px; height: 42px; border-radius: 10px; background: rgba(255,255,255,.15); display: flex; align-items: center; justify-content: center; font-size: 28px; }
+  .tm-slot.filled { background: linear-gradient(145deg, #fff8e7, #ffe0a3); box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+
+  .oo-lives { font-size: 19px; letter-spacing: 2px; }
+  .oo-barWrap { width: 280px; max-width: 90vw; height: 12px; background: rgba(255,255,255,.15); border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+  .oo-bar { height: 100%; width: 100%; background: linear-gradient(90deg, #f7971e, #ffd200); border-radius: 8px; transition: width .1s linear; }
+  .oo-grid { display: grid; gap: 8px; background: rgba(255,255,255,.08); padding: 12px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .oo-tile { width: 60px; height: 60px; border-radius: 12px; cursor: pointer; border: 2px solid rgba(255,255,255,.2); transition: transform .1s; }
+  .oo-tile:hover { transform: scale(1.05); }
+  .oo-tile.wrong { animation: oo-shake .4s; }
+  .oo-tile.found { animation: oo-found .5s forwards; }
+  @keyframes oo-shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
+  @keyframes oo-found { 0% { transform: scale(1); } 50% { transform: scale(1.4) rotate(20deg); } 100% { transform: scale(0); } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <button data-g="water" onclick="showGame('water')">🧪 水排序</button>
+    <button data-g="block" onclick="showGame('block')">🧩 方块消除</button>
+    <button data-g="tile" onclick="showGame('tile')">🍓 消消乐 3D</button>
+    <button data-g="odd" onclick="showGame('odd')">👀 火眼金睛</button>
+  </div>
+
+  <section id="screen-water" class="screen active">
+    <h1>水排序拼图</h1>
+    <div class="stats"><span>步数 <b id="ws-moves">0</b></span><span>关卡 <b id="ws-level">1</b></span></div>
+    <div id="ws-board" class="ws-board"></div>
+    <div class="btns">
+      <button class="btn secondary" onclick="WaterSort.restart()">重来</button>
+      <button class="btn" onclick="WaterSort.next()">下一关</button>
+    </div>
+    <div id="ws-overlay" class="overlay"><div class="modal"><h2 class="gold">🎉 恭喜过关！</h2><p id="ws-winMsg"></p><button class="btn" onclick="WaterSort.next()">下一关</button></div></div>
+  </section>
+
+  <section id="screen-block" class="screen">
+    <h1>方块消除</h1>
+    <div class="stats"><span>得分 <b id="bb-score">0</b></span><span>最高 <b id="bb-best">0</b></span></div>
+    <div class="bb-gridWrap"><div id="bb-grid" class="bb-grid"></div></div>
+    <div id="bb-tray" class="bb-tray"></div>
+    <div id="bb-ghost" class="bb-ghost"></div>
+    <div class="btns"><button class="btn secondary" onclick="BlockBlast.init()">重新开始</button></div>
+    <div id="bb-overlay" class="overlay"><div class="modal"><h2 class="red">游戏结束</h2><p id="bb-finalMsg"></p><button class="btn" onclick="BlockBlast.init()">再来一局</button></div></div>
+  </section>
+
+  <section id="screen-tile" class="screen">
+    <h1>水果消消乐 3D</h1>
+    <div class="stats"><span>步数 <b id="tm-moves">0</b></span><span>得分 <b id="tm-score">0</b></span></div>
+    <div id="tm-board" class="tm-board"></div>
+    <div id="tm-trayBar" class="tm-trayBar"></div>
+    <div class="btns"><button class="btn" onclick="TileMatch.init()">重新洗牌</button></div>
+    <div id="tm-overlay" class="overlay"><div class="modal"><h2 class="green">🎉 全部消除！</h2><p id="tm-winMsg"></p><button class="btn" onclick="TileMatch.init()">再来一局</button></div></div>
+    <div id="tm-overlayLose" class="overlay"><div class="modal"><h2 class="red">💥 游戏结束</h2><p id="tm-loseMsg"></p><button class="btn" onclick="TileMatch.init()">重新洗牌</button></div></div>
+  </section>
+
+  <section id="screen-odd" class="screen">
+    <h1>火眼金睛</h1>
+    <div class="stats">
+      <span>分数 <b id="oo-score">0</b></span>
+      <span>等级 <b id="oo-level">1</b></span>
+      <span class="oo-lives" id="oo-lives">❤️❤️❤️</span>
+    </div>
+    <div class="oo-barWrap"><div id="oo-bar" class="oo-bar"></div></div>
+    <div id="oo-grid" class="oo-grid"></div>
+    <div class="btns"><button class="btn" onclick="OddOneOut.init()">重新开始</button></div>
+    <div id="oo-overlay" class="overlay"><div class="modal"><h2 class="green">🏆 完美通关！</h2><p id="oo-winMsg"></p><button class="btn" onclick="OddOneOut.init()">再来一局</button></div></div>
+    <div id="oo-overlayLose" class="overlay"><div class="modal"><h2 class="red">⏰ 时间到！</h2><p id="oo-loseMsg"></p><button class="btn" onclick="OddOneOut.init()">重新开始</button></div></div>
+  </section>
+
+<script>
+const WaterSort = (function () {
+  const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#e67e22','#1abc9c','#ff69b4','#34495e','#ecf0f1','#8e44ad','#16a085'];
+  const SEG = 4;
+  let tubes = [], selected = null, moves = 0, level = 1, busy = false;
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function next() { level++; document.getElementById('ws-level').textContent = level; init(); }
+  function restart() { init(); }
+
+  function init() {
+    const nColors = Math.min(4 + level, COLORS.length);
+    const all = [];
+    for (let c = 0; c < nColors; c++) for (let i = 0; i < SEG; i++) all.push(c);
+    let valid = false;
+    while (!valid) {
+      shuffle(all);
+      tubes = [];
+      for (let t = 0; t < nColors; t++) tubes.push(all.slice(t * SEG, t * SEG + SEG));
+      for (let e = 0; e < 2; e++) tubes.push([]);
+      valid = tubes.every(t => t.some((c, i) => c !== t[0]) || t.length < SEG);
+    }
+    moves = 0; selected = null; busy = false;
+    document.getElementById('ws-moves').textContent = 0;
+    document.getElementById('ws-overlay').classList.remove('show');
+    render();
+  }
+
+  function render() {
+    const board = document.getElementById('ws-board');
+    board.innerHTML = '';
+    tubes.forEach((tube, idx) => {
+      const div = document.createElement('div');
+      div.className = 'ws-tube' + (selected === idx ? ' selected' : '');
+      if (tube.length === SEG && tube.every(c => c === tube[0])) div.classList.add('win');
+      tube.forEach((c, i) => {
+        const seg = document.createElement('div');
+        seg.className = 'ws-seg';
+        seg.style.background = COLORS[c];
+        seg.style.top = (164 - 4 - (i + 1) * 38) + 'px';
+        seg.style.height = '36px';
+        div.appendChild(seg);
+      });
+      const tip = document.createElement('div');
+      tip.className = 'ws-tip';
+      div.appendChild(tip);
+      div.addEventListener('click', () => handleClick(idx, div));
+      board.appendChild(div);
+    });
+  }
+
+  function canPour(from, to) {
+    if (from === to) return false;
+    const src = tubes[from], dst = tubes[to];
+    if (!src.length || dst.length >= SEG) return false;
+    if (!dst.length) return true;
+    return src[src.length - 1] === dst[dst.length - 1];
+  }
+
+  function pourCount(from, to) {
+    const src = tubes[from], dst = tubes[to], color = src[src.length - 1];
+    let count = 0;
+    while (src.length - count > 0 && src[src.length - 1 - count] === color && dst.length + count < SEG) count++;
+    return count;
+  }
+
+  function handleClick(idx, div) {
+    if (busy) return;
+    if (selected === null) {
+      if (tubes[idx].length) { selected = idx; render(); }
+      return;
+    }
+    if (selected === idx) { selected = null; render(); return; }
+    if (!canPour(selected, idx)) {
+      selected = null;
+      div.classList.add('shake');
+      setTimeout(() => { div.classList.remove('shake'); render(); }, 420);
+      return;
+    }
+    const count = pourCount(selected, idx);
+    busy = true;
+    const srcIdx = selected;
+    selected = null;
+    render();
+    setTimeout(() => {
+      const moved = tubes[srcIdx].splice(tubes[srcIdx].length - count, count);
+      tubes[idx].push(...moved);
+      moves++;
+      document.getElementById('ws-moves').textContent = moves;
+      render();
+      busy = false;
+      if (checkWin()) {
+        document.getElementById('ws-winMsg').textContent = `共用了 ${moves} 步完成第 ${level} 关！`;
+        setTimeout(() => document.getElementById('ws-overlay').classList.add('show'), 350);
+      }
+    }, 300);
+  }
+
+  function checkWin() {
+    return tubes.every(t => t.length === 0 || (t.length === SEG && t.every(c => c === t[0])));
+  }
+
+  return { init, restart, next };
+})();
+
+const BlockBlast = (function () {
+  const ROWS = 8, COLS = 8, STEP = 50;
+  const PALETTE = [['#ff9a56','#f5532d'],['#59d7ff','#2d7ff5'],['#b8f15b','#5fbf2f'],['#ff8ad8','#e94fb0'],['#ffd14f','#f5a623'],['#c89bff','#8b4fe0'],['#7ef0d4','#2bbfa0'],['#ff9db0','#ef5b74']];
+  const SHAPES = [
+    [[0,0]], [[0,0],[0,1]], [[0,0],[1,0]], [[0,0],[0,1],[0,2]], [[0,0],[1,0],[2,0]],
+    [[0,0],[0,1],[0,2],[0,3]], [[0,0],[1,0],[2,0],[3,0]], [[0,0],[0,1],[1,0],[1,1]],
+    [[0,0],[0,1],[1,1],[1,2]], [[0,0],[1,0],[1,1],[2,1]], [[0,0],[1,0],[2,0],[2,1]],
+    [[0,0],[0,1],[0,2],[1,0]]
+  ];
+  let grid = [], tray = [], score = 0, dragging = null, hover = null;
+  let best = +(localStorage.getItem('bb_best') || 0);
+  const gridEl = document.getElementById('bb-grid');
+  const trayEl = document.getElementById('bb-tray');
+  const ghostEl = document.getElementById('bb-ghost');
+
+  function randInt(n) { return Math.floor(Math.random() * n); }
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  function buildCells() {
+    gridEl.innerHTML = '';
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        const d = document.createElement('div');
+        d.className = 'bb-cell';
+        d.dataset.r = r;
+        d.dataset.c = c;
+        gridEl.appendChild(d);
+      }
+  }
+
+  function buildPieceEl(shape, colorIdx) {
+    const el = document.createElement('div');
+    el.className = 'bb-piece';
+    const w = Math.max(...shape.map(c => c[1])) + 1;
+    const h = Math.max(...shape.map(c => c[0])) + 1;
+    const g = 4, s = 40;
+    el.style.width = (w * (s + g) - g) + 'px';
+    el.style.height = (h * (s + g) - g) + 'px';
+    shape.forEach(([r, c]) => {
+      const d = document.createElement('div');
+      d.className = 'bb-pcell';
+      d.style.left = (c * (s + g)) + 'px';
+      d.style.top = (r * (s + g)) + 'px';
+      d.style.width = s + 'px';
+      d.style.height = s + 'px';
+      d.style.background = `linear-gradient(145deg,${PALETTE[colorIdx][0]},${PALETTE[colorIdx][1]})`;
+      el.appendChild(d);
+    });
+    return el;
+  }
+
+  function renderGrid() {
+    document.querySelectorAll('#bb-grid .bb-cell').forEach(d => {
+      const r = +d.dataset.r, c = +d.dataset.c;
+      let cls = 'bb-cell';
+      if (grid[r][c]) {
+        const ci = grid[r][c];
+        cls += ' filled';
+        d.style.background = `linear-gradient(145deg,${PALETTE[ci - 1][0]},${PALETTE[ci - 1][1]})`;
+      } else {
+        d.style.background = '';
+      }
+      if (hover && hover.cells.some(([hr, hc]) => hr === r && hc === c)) {
+        cls += ' hl';
+        if (!hover.valid) cls += ' bad';
+      }
+      d.className = cls;
+    });
+  }
+
+  function renderTray() {
+    trayEl.innerHTML = '';
+    tray.forEach((p, i) => {
+      const el = buildPieceEl(p.shape, p.color);
+      el.addEventListener('pointerdown', e => startDrag(e, i));
+      trayEl.appendChild(el);
+    });
+  }
+
+  function startDrag(e, idx) {
+    e.preventDefault();
+    dragging = idx;
+    const p = tray[idx];
+    ghostEl.innerHTML = '';
+    ghostEl.appendChild(buildPieceEl(p.shape, p.color));
+    ghostEl.style.display = 'block';
+    moveGhost(e);
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
+  function moveGhost(e) {
+    ghostEl.style.left = (e.clientX - 28) + 'px';
+    ghostEl.style.top = (e.clientY - 28) + 'px';
+  }
+
+  function canPlace(shape, r, c) {
+    return shape.every(([dr, dc]) => {
+      const rr = r + dr, cc = c + dc;
+      return rr >= 0 && rr < ROWS && cc >= 0 && cc < COLS && !grid[rr][cc];
+    });
+  }
+
+  function findPlacement(shape, r, c) {
+    const maxR = Math.max(...shape.map(x => x[0])), maxC = Math.max(...shape.map(x => x[1]));
+    r = Math.max(0, Math.min(r - shape[0][0], ROWS - 1 - maxR));
+    c = Math.max(0, Math.min(c - shape[0][1], COLS - 1 - maxC));
+    const cells = shape.map(([dr, dc]) => [r + dr, c + dc]);
+    return { r, c, cells, valid: canPlace(shape, r, c) };
+  }
+
+  function onMove(e) {
+    moveGhost(e);
+    if (dragging === null) return;
+    const rect = gridEl.parentElement.getBoundingClientRect();
+    const r = Math.floor((e.clientY - rect.top) / STEP);
+    const c = Math.floor((e.clientX - rect.left) / STEP);
+    hover = (r >= 0 && r < ROWS && c >= 0 && c < COLS) ? findPlacement(tray[dragging].shape, r, c) : null;
+    renderGrid();
+  }
+
+  function onUp() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    ghostEl.style.display = 'none';
+    const idx = dragging;
+    dragging = null;
+    if (idx !== null && hover && hover.valid) place(idx, hover);
+    hover = null;
+    renderGrid();
+  }
+
+  function place(idx, p) {
+    const shape = tray[idx].shape, color = tray[idx].color;
+    p.cells.forEach(([r, c]) => { grid[r][c] = color; });
+    score += shape.length;
+    score += clearLines() * 10;
+    tray.splice(idx, 1);
+    refill();
+    updateScore();
+    renderTray();
+    renderGrid();
+    if (noMoves()) gameOver();
+  }
+
+  function clearLines() {
+    const rows = [], cols = [];
+    for (let r = 0; r < ROWS; r++) if (grid[r].every(Boolean)) rows.push(r);
+    for (let c = 0; c < COLS; c++) {
+      let ok = true;
+      for (let r = 0; r < ROWS; r++) if (!grid[r][c]) { ok = false; break; }
+      if (ok) cols.push(c);
+    }
+    rows.forEach(r => grid[r] = Array(COLS).fill(false));
+    cols.forEach(c => { for (let r = 0; r < ROWS; r++) grid[r][c] = false; });
+    return rows.length + cols.length;
+  }
+
+  function refill() {
+    while (tray.length < 3) tray.push({ shape: SHAPES[randInt(SHAPES.length)], color: 1 + randInt(PALETTE.length) });
+  }
+
+  function noMoves() {
+    return tray.every(p => {
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (canPlace(p.shape, r, c)) return false;
+      return true;
+    });
+  }
+
+  function updateScore() {
+    document.getElementById('bb-score').textContent = score;
+    if (score > best) { best = score; localStorage.setItem('bb_best', best); }
+    document.getElementById('bb-best').textContent = best;
+  }
+
+  function gameOver() {
+    document.getElementById('bb-finalMsg').textContent = `本次得分：${score} 分`;
+    document.getElementById('bb-overlay').classList.add('show');
+  }
+
+  function init() {
+    dragging = null; hover = null;
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    ghostEl.style.display = 'none';
+    grid = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
+    tray = [];
+    score = 0;
+    refill();
+    renderGrid();
+    renderTray();
+    updateScore();
+    document.getElementById('bb-overlay').classList.remove('show');
+  }
+
+  buildCells();
+  return { init };
+})();
+
+const TileMatch = (function () {
+  const EMOJIS = ['🍎', '🍋', '🍇', '🍊', '🍓', '🥝', '🍒', '🍉', '🍑', '🥥'];
+  const NSTACKS = 12, TRAY_MAX = 7;
+  let stacks = [], tray = [], score = 0, moves = 0, busy = false;
+  const boardEl = document.getElementById('tm-board');
+  const trayBarEl = document.getElementById('tm-trayBar');
+
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+  function init() {
+    const types = Math.min(3 + Math.floor(score / 60), EMOJIS.length);
+    stacks = Array.from({ length: NSTACKS }, () => []);
+    for (let d = 0; d < types; d++) {
+      const idxs = shuffle([...Array(NSTACKS).keys()]).slice(0, 3);
+      idxs.forEach(s => stacks[s].push({ e: EMOJIS[d], id: d }));
+    }
+    tray = []; moves = 0; busy = false;
+    document.getElementById('tm-overlay').classList.remove('show');
+    document.getElementById('tm-overlayLose').classList.remove('show');
+    renderBoard();
+    renderTray();
+    updateStats();
+  }
+
+  function renderBoard() {
+    boardEl.innerHTML = '';
+    stacks.forEach((st, si) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'tm-stack';
+      const n = st.length;
+      st.forEach((t, i) => {
+        const d = document.createElement('div');
+        d.className = 'tm-tile' + (i < n - 1 ? ' covered' : ' top');
+        d.textContent = t.e;
+        d.style.left = (8 + i * 7) + 'px';
+        d.style.top = (8 - i * 2) + 'px';
+        d.style.zIndex = i;
+        if (i === n - 1) d.addEventListener('click', () => clickStack(si, d));
+        wrap.appendChild(d);
+      });
+      boardEl.appendChild(wrap);
+    });
+  }
+
+  function clickStack(si, el) {
+    if (busy) return;
+    const st = stacks[si];
+    if (!st.length) return;
+    const t = st.pop();
+    tray.push(t);
+    moves++;
+    el.classList.add('grab');
+    const emoji = t.e;
+    setTimeout(() => {
+      renderBoard();
+      renderTray();
+      updateStats();
+      const cnt = tray.filter(x => x.e === emoji).length;
+      if (cnt === 3) {
+        busy = true;
+        setTimeout(() => {
+          tray = tray.filter(x => x.e !== emoji);
+          score += 3;
+          renderTray();
+          updateStats();
+          busy = false;
+          if (stacks.every(s => !s.length)) win();
+        }, 500);
+      } else if (tray.length >= TRAY_MAX) {
+        lose();
+      }
+    }, 260);
+  }
+
+  function renderTray() {
+    trayBarEl.innerHTML = '';
+    for (let i = 0; i < TRAY_MAX; i++) {
+      const s = document.createElement('div');
+      s.className = 'tm-slot' + (i < tray.length ? ' filled' : '');
+      if (i < tray.length) s.textContent = tray[i].e;
+      trayBarEl.appendChild(s);
+    }
+  }
+
+  function updateStats() {
+    document.getElementById('tm-moves').textContent = moves;
+    document.getElementById('tm-score').textContent = score;
+  }
+
+  function win() {
+    document.getElementById('tm-winMsg').textContent = `共用了 ${moves} 步，得分 ${score} 分！`;
+    document.getElementById('tm-overlay').classList.add('show');
+  }
+
+  function lose() {
+    document.getElementById('tm-loseMsg').textContent = `累计得分：${score} 分`;
+    document.getElementById('tm-overlayLose').classList.add('show');
+  }
+
+  return { init };
+})();
+
+const OddOneOut = (function () {
+  let level = 1, score = 0, lives = 3, timeLeft = 8, oddIdx = -1, variant = 'shade';
+  let timer = null, locked = false;
+  const gridEl = document.getElementById('oo-grid');
+
+  function randInt(n) { return Math.floor(Math.random() * n); }
+  function randColor() { return { h: randInt(360), s: 55 + randInt(20) }; }
+
+  function init() {
+    clearInterval(timer);
+    level = 1; score = 0; lives = 3; locked = false;
+    document.getElementById('oo-overlay').classList.remove('show');
+    document.getElementById('oo-overlayLose').classList.remove('show');
+    updateStats();
+    startLevel();
+  }
+
+  function startLevel() {
+    clearInterval(timer);
+    const n = Math.min(2 + level, 8);
+    const total = n * n;
+    const base = randColor();
+    const diff = Math.max(3, 30 - level * 2);
+    variant = (level >= 4 && Math.random() < 0.5) ? 'rotate' : 'shade';
+    oddIdx = randInt(total);
+
+    gridEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+    gridEl.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const t = document.createElement('div');
+      t.className = 'oo-tile';
+      if (i === oddIdx) {
+        t.style.background = variant === 'rotate'
+          ? `hsl(${base.h},${base.s}%,52%)`
+          : `hsl(${base.h},${base.s}%,${52 + (Math.random() < 0.5 ? -diff : diff)}%)`;
+        if (variant === 'rotate') t.style.transform = 'rotate(180deg)';
+      } else {
+        t.style.background = `hsl(${base.h},${base.s}%,52%)`;
+      }
+      t.addEventListener('click', () => clickTile(i, t));
+      gridEl.appendChild(t);
+    }
+
+    timeLeft = 8;
+    updateBar();
+    timer = setInterval(() => {
+      timeLeft -= 0.1;
+      updateBar();
+      if (timeLeft <= 0) { clearInterval(timer); lose(); }
+    }, 100);
+  }
+
+  function updateBar() {
+    document.getElementById('oo-bar').style.width = (timeLeft / 8 * 100) + '%';
+  }
+
+  function updateStats() {
+    document.getElementById('oo-score').textContent = score;
+    document.getElementById('oo-level').textContent = level;
+    document.getElementById('oo-lives').textContent = '❤️'.repeat(Math.max(lives, 0)) + '🖤'.repeat(Math.max(3 - lives, 0));
+  }
+
+  function clickTile(i, el) {
+    if (locked) return;
+    if (i === oddIdx) {
+      el.classList.add('found');
+      locked = true;
+      clearInterval(timer);
+      score += 100 + Math.round(timeLeft * 10);
+      setTimeout(() => { level++; locked = false; updateStats(); startLevel(); }, 450);
+    } else {
+      el.classList.add('wrong');
+      setTimeout(() => el.classList.remove('wrong'), 400);
+      lives--;
+      score = Math.max(0, score - 20);
+      updateStats();
+      if (lives <= 0) { clearInterval(timer); lose(); }
+    }
+  }
+
+  function lose() {
+    clearInterval(timer);
+    locked = true;
+    const msg = `得分 ${score} 分，到达第 ${level} 级。`;
+    if (lives <= 0) document.getElementById('oo-loseMsg').textContent = `生命耗尽！${msg}`;
+    else document.getElementById('oo-loseMsg').textContent = msg;
+    document.getElementById('oo-overlayLose').classList.add('show');
+  }
+
+  return { init };
+})();
+
+function showGame(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('.topbar button').forEach(b => b.classList.toggle('active', b.dataset.g === name));
+  if (name === 'water') WaterSort.init();
+  if (name === 'block') BlockBlast.init();
+  if (name === 'tile') TileMatch.init();
+  if (name === 'odd') OddOneOut.init();
+}
+
+showGame('water');
+</script>
+</body>
+</html>
