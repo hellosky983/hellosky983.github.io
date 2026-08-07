@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斗兽棋 · 人机对战</title>
+<style>
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 18px;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", sans-serif;
+  background: linear-gradient(150deg, #fdf6e3 0%, #f2e3c0 100%);
+  min-height: 100vh;
+  display: flex; justify-content: center; align-items: flex-start;
+}
+#app { text-align: center; }
+h1 { margin: 4px 0 8px; color: #5a4632; letter-spacing: 6px; font-size: 26px; }
+.controls {
+  display: flex; gap: 12px; justify-content: center; align-items: center;
+  flex-wrap: wrap; margin-bottom: 8px;
+}
+.controls label {
+  cursor: pointer; background: #fff; border: 1px solid #d9c8a8;
+  border-radius: 999px; padding: 6px 14px; font-size: 14px; color: #5a4632;
+  user-select: none;
+}
+.controls label:has(input:checked) { background: #8d6e63; color: #fff; border-color: #8d6e63; }
+.controls label input { margin-right: 4px; }
+.controls button {
+  cursor: pointer; border: none; border-radius: 999px; padding: 7px 18px;
+  font-size: 14px; color: #fff; background: #a1887f;
+}
+.controls button:hover { filter: brightness(1.08); }
+#status {
+  font-size: 17px; font-weight: bold; color: #4a3b2a;
+  min-height: 26px; margin: 6px 0;
+}
+.side-tag { font-size: 15px; font-weight: bold; margin: 4px 0; letter-spacing: 2px; }
+.side-tag.s0 { color: #e53935; }
+.side-tag.s1 { color: #1e88e5; }
+#board {
+  display: inline-grid; grid-template-columns: repeat(7, 62px);
+  grid-template-rows: repeat(9, 62px);
+  border: 4px solid #7d5a3c; border-radius: 10px;
+  background: #ecdcae; overflow: hidden;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .28);
+}
+.cell {
+  position: relative; width: 62px; height: 62px;
+  border: 1px solid rgba(125, 90, 60, .35);
+  display: flex; align-items: center; justify-content: center;
+}
+.cell.water { background: linear-gradient(160deg, #b3dcf0, #6fbfe0); }
+.cell.water::after {
+  content: "〰"; position: absolute; color: rgba(255, 255, 255, .5);
+  font-size: 22px; pointer-events: none;
+}
+.cell.trap { background: #c9b290; }
+.cell.trap::after {
+  content: "陷"; position: absolute; color: rgba(109, 82, 55, .55);
+  font-size: 16px; pointer-events: none;
+}
+.cell.den-s0 { background: #f2c79b; box-shadow: inset 0 0 0 3px #e07b5a; }
+.cell.den-s1 { background: #b7d9ee; box-shadow: inset 0 0 0 3px #5a9bcb; }
+.cell.den::after {
+  content: "🏠"; position: absolute; font-size: 20px; pointer-events: none;
+}
+.cell.target {
+  cursor: pointer;
+  background: radial-gradient(circle, rgba(46, 204, 113, .85) 26%, rgba(46, 204, 113, .25) 60%, transparent 75%) !important;
+}
+.cell.capture {
+  cursor: pointer;
+  box-shadow: inset 0 0 0 3px rgba(231, 76, 60, .85);
+  background: rgba(231, 76, 60, .18) !important;
+}
+.piece {
+  position: relative; z-index: 1;
+  width: 50px; height: 50px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; user-select: none;
+  border: 3px solid rgba(255, 255, 255, .88);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, .35);
+  transition: transform .12s;
+}
+.piece:hover { transform: scale(1.07); }
+.piece.s0 { background: radial-gradient(circle at 32% 30%, #ff8a65, #e53935 75%); color: #fff; }
+.piece.s1 { background: radial-gradient(circle at 32% 30%, #64b5f6, #1e6fbe 75%); color: #fff; }
+.piece .emoji { font-size: 21px; line-height: 1; }
+.piece .name { font-size: 12px; font-weight: bold; line-height: 1; margin-top: 1px; }
+.piece.selected {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px #f1c40f, 0 4px 8px rgba(0, 0, 0, .4);
+}
+.legend { margin-top: 12px; font-size: 13px; color: #7a6a55; line-height: 1.8; }
+.legend b { color: #4a3b2a; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🐾 斗兽棋</h1>
+  <div class="controls">
+    <label><input type="radio" name="side" value="0" checked>🔴 红方（先手）</label>
+    <label><input type="radio" name="side" value="1">🔵 蓝方（后手）</label>
+    <button id="newGame">🔄 新游戏</button>
+    <button id="undo">↩️ 悔棋</button>
+    <button id="soundBtn">🔊 音效</button>
+  </div>
+  <div id="status"></div>
+  <div class="side-tag s1">🔵 蓝方</div>
+  <div id="board"></div>
+  <div class="side-tag s0">🔴 红方</div>
+  <div class="legend">
+    <b>规则：</b>象&gt;狮&gt;虎&gt;豹&gt;狼&gt;狗&gt;猫&gt;鼠，鼠可吃象、象不可吃鼠；同级不可互吃；<br>
+    <b>河</b>（水）只有鼠能进入，狮、虎可直线跳过河（河中有鼠则不可跳）；<br>
+    <b>陷</b> 敌方棋子进入己方陷阱后，己方任意棋子可吃它；<b>穴</b> 走进对方兽穴即获胜。红方先手。
+  </div>
+</div>
+<script>
+const R = 9, C = 7;
+const EMOJI = { '鼠': '🐭', '猫': '🐱', '狗': '🐶', '狼': '🐺', '豹': '🐆', '虎': '🐯', '狮': '🦁', '象': '🐘' };
+const RANK = { '鼠': 1, '猫': 2, '狗': 3, '狼': 4, '豹': 5, '虎': 6, '狮': 7, '象': 8 };
+const DEN = { 0: [6, 3], 1: [2, 3] };
+const TRAPS = [
+  [[2, 7], [3, 7], [4, 7], [2, 6], [4, 6]],
+  [[2, 1], [3, 1], [4, 1], [2, 2], [4, 2]]
+];
+const DEPTH = 4;
+const NODE_CAP = 600000;
+let nodeCount = 0;
+
+function isWater(r, c) { return r >= 3 && r <= 5 && c >= 1 && c <= 5; }
+function onTrap(side, r, c) { return TRAPS[side].some(([tr, tc]) => tr === r && tc === c); }
+
+function newBoard() {
+  const b = [];
+  for (let r = 0; r < R; r++) b.push(new Array(C).fill(null));
+  const red = ['猫', '狗', '狼', '豹', '虎', '狮', '象'];
+  const blue = ['象', '狮', '虎', '豹', '狼', '狗', '猫'];
+  for (let c = 0; c < C; c++) {
+    b[8][c] = { t: red[c], s: 0 };
+    b[0][c] = { t: blue[c], s: 1 };
+  }
+  b[7][3] = { t: '鼠', s: 0 };
+  b[1][3] = { t: '鼠', s: 1 };
+  return b;
+}
+
+function hasAny(b, side) {
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const p = b[r][c];
+    if (p && p.s === side) return true;
+  }
+  return false;
+}
+
+function canCapture(atk, def, dr, dc) {
+  if (atk.s === def.s) return false;
+  if (onTrap(atk.s, dr, dc)) return true;
+  if (isWater(dr, dc) && def.t === '鼠' && atk.t !== '鼠') return false;
+  if (atk.t === '象' && def.t === '鼠') return false;
+  if (atk.t === '鼠' && def.t === '象') return true;
+  return RANK[atk.t] > RANK[def.t];
+}
+
+function genMoves(b, side) {
+  const moves = [];
+  const [edr, edc] = DEN[1 - side];
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const p = b[r][c];
+    if (!p || p.s !== side) continue;
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= R || nc < 0 || nc >= C) continue;
+      if (isWater(nr, nc)) {
+        if (p.t === '鼠') {
+          const d = b[nr][nc];
+          if (!d) moves.push({ r, c, nr, nc, t: p.t });
+          else if (d.s !== side && canCapture(p, d, nr, nc)) moves.push({ r, c, nr, nc, t: p.t, cap: d });
+        } else if (p.t === '狮' || p.t === '虎') {
+          let tr = nr, tc = nc, blocked = false;
+          while (isWater(tr, tc)) {
+            if (b[tr][tc]) { blocked = true; break; }
+            tr += dr; tc += dc;
+          }
+          if (!blocked && tr >= 0 && tr < R && tc >= 0 && tc < C) {
+            const d = b[tr][tc];
+            if (tr === edr && tc === edc) moves.push({ r, c, nr: tr, nc: tc, t: p.t, win: true });
+            else if (!d) moves.push({ r, c, nr: tr, nc: tc, t: p.t });
+            else if (d.s !== side && canCapture(p, d, tr, tc)) moves.push({ r, c, nr: tr, nc: tc, t: p.t, cap: d });
+          }
+        }
+      } else {
+        if (nr === DEN[side][0] && nc === DEN[side][1]) continue;
+        if (nr === edr && nc === edc) { moves.push({ r, c, nr, nc, t: p.t, win: true }); continue; }
+        const d = b[nr][nc];
+        if (!d) moves.push({ r, c, nr, nc, t: p.t });
+        else if (d.s !== side && canCapture(p, d, nr, nc)) moves.push({ r, c, nr, nc, t: p.t, cap: d });
+      }
+    }
+  }
+  return moves;
+}
+
+function applyMove(b, mv) {
+  b[mv.nr][mv.nc] = b[mv.r][mv.c];
+  b[mv.r][mv.c] = null;
+}
+
+function evaluate(b) {
+  let score = 0;
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const p = b[r][c];
+    if (!p) continue;
+    const [edr, edc] = DEN[1 - p.s];
+    const d = Math.abs(r - edr) + Math.abs(c - edc);
+    let v = RANK[p.t] + Math.max(0, 10 - d);
+    if (p.t === '鼠') v += Math.max(0, 10 - d) + 1;
+    if (isWater(r, c)) v += 2;
+    if (onTrap(1 - p.s, r, c)) v -= 3;
+    score += p.s === 0 ? v : -v;
+  }
+  return score;
+}
+
+function orderMoves(moves, side) {
+  const [edr, edc] = DEN[1 - side];
+  for (const m of moves) {
+    let k = 0;
+    if (m.win) k += 2000;
+    if (m.cap) k += 100 + RANK[m.cap.t];
+    k += Math.max(0, 12 - (Math.abs(m.nr - edr) + Math.abs(m.nc - edc)));
+    m._k = k;
+  }
+  moves.sort((a, b) => b._k - a._k);
+}
+
+function search(b, side, depth, alpha, beta) {
+  if (++nodeCount > NODE_CAP) return side === 0 ? evaluate(b) : -evaluate(b);
+  const moves = genMoves(b, side);
+  if (moves.length === 0) return -(100000 + depth);
+  if (depth === 0) return side === 0 ? evaluate(b) : -evaluate(b);
+  orderMoves(moves, side);
+  let best = -Infinity;
+  for (const mv of moves) {
+    const nb = b.map(row => row.slice());
+    applyMove(nb, mv);
+    let sc;
+    if (mv.win || !hasAny(nb, 1 - side)) sc = 100000 + depth;
+    else sc = -search(nb, 1 - side, depth - 1, -beta, -alpha);
+    if (sc > best) best = sc;
+    if (best > alpha) alpha = best;
+    if (alpha >= beta) break;
+  }
+  return best;
+}
+
+function findBest(side) {
+  const moves = genMoves(board, side);
+  if (moves.length === 0) return null;
+  orderMoves(moves, side);
+  nodeCount = 0;
+  let bestMv = moves[0], bestSc = -Infinity;
+  for (const mv of moves) {
+    const nb = board.map(row => row.slice());
+    applyMove(nb, mv);
+    let sc;
+    if (mv.win || !hasAny(nb, 1 - side)) sc = 100000 + DEPTH;
+    else sc = -search(nb, 1 - side, DEPTH - 1, -Infinity, Infinity);
+    sc += Math.random() * 0.01;
+    if (sc > bestSc) { bestSc = sc; bestMv = mv; }
+  }
+  return bestMv;
+}
+
+let board, turn = 0, humanSide = 0, history = [], selected = null, legal = [], gameOver = null, thinking = false;
+
+let audioCtx = null, muted = false;
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function tone(freq, dur, type, vol, when, freqEnd) {
+  if (!audioCtx || muted) return;
+  const t0 = audioCtx.currentTime + (when || 0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  if (freqEnd) osc.frequency.exponentialRampToValueAtTime(freqEnd, t0 + dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.03);
+}
+const sfx = {
+  select() { ensureAudio(); tone(700, 0.06, 'square', 0.05); },
+  move() { ensureAudio(); tone(330, 0.09, 'sine', 0.12); },
+  capture() { ensureAudio(); tone(520, 0.07, 'square', 0.1); tone(240, 0.13, 'square', 0.1, 0.07); },
+  jump() { ensureAudio(); tone(180, 0.28, 'sine', 0.09, 0, 760); },
+  win() { ensureAudio(); [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.2, 'triangle', 0.13, i * 0.14)); },
+  start() { ensureAudio(); tone(440, 0.1, 'triangle', 0.09); tone(660, 0.14, 'triangle', 0.09, 0.11); }
+};
+
+const boardEl = document.getElementById('board');
+const cellEls = [];
+for (let r = 0; r < R; r++) {
+  cellEls.push([]);
+  for (let c = 0; c < C; c++) {
+    const div = document.createElement('div');
+    div.className = 'cell';
+    if (isWater(r, c)) div.classList.add('water');
+    if (onTrap(0, r, c) || onTrap(1, r, c)) div.classList.add('trap');
+    if (DEN[0][0] === r && DEN[0][1] === c) div.classList.add('den', 'den-s0');
+    if (DEN[1][0] === r && DEN[1][1] === c) div.classList.add('den', 'den-s1');
+    div.addEventListener('click', () => cellClick(r, c));
+    boardEl.appendChild(div);
+    cellEls[r].push(div);
+  }
+}
+
+function render() {
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    const cell = cellEls[r][c];
+    cell.innerHTML = '';
+    cell.classList.remove('target', 'capture');
+    const p = board[r][c];
+    if (p) {
+      const div = document.createElement('div');
+      div.className = 'piece s' + p.s;
+      div.innerHTML = '<span class="emoji">' + EMOJI[p.t] + '</span><span class="name">' + p.t + '</span>';
+      if (selected && selected.r === r && selected.c === c) div.classList.add('selected');
+      cell.appendChild(div);
+    }
+  }
+  for (const m of legal) {
+    cellEls[m.nr][m.nc].classList.add(m.cap ? 'capture' : 'target');
+  }
+}
+
+function updateStatus() {
+  const el = document.getElementById('status');
+  if (gameOver !== null) {
+    const w = gameOver === 0 ? '红方' : '蓝方';
+    const who = gameOver === humanSide ? '（你）' : '（电脑）';
+    el.textContent = '🏆 ' + w + who + ' 胜利！';
+    return;
+  }
+  const n = turn === 0 ? '红方' : '蓝方';
+  if (turn === humanSide) el.textContent = '轮到 ' + n + '（你），请走棋';
+  else el.textContent = '轮到 ' + n + '（电脑思考中…）';
+}
+
+function checkEnd(mv) {
+  const other = 1 - turn;
+  if (mv.win || !hasAny(board, other) || genMoves(board, other).length === 0) {
+    gameOver = 1 - turn;
+    return true;
+  }
+  return false;
+}
+
+function doMove(mv) {
+  history.push({ board: board.map(row => row.slice()), turn });
+  applyMove(board, mv);
+  turn = 1 - turn;
+  selected = null; legal = [];
+  render();
+  const ended = checkEnd(mv);
+  if (mv.cap) sfx.capture();
+  else if (Math.abs(mv.nr - mv.r) + Math.abs(mv.nc - mv.c) > 1) sfx.jump();
+  else sfx.move();
+  if (ended) sfx.win();
+  updateStatus();
+  if (!ended && turn !== humanSide) scheduleAI();
+}
+
+function scheduleAI() {
+  thinking = true;
+  updateStatus();
+  setTimeout(() => {
+    thinking = false;
+    if (gameOver !== null) return;
+    const mv = findBest(turn);
+    if (!mv) { gameOver = 1 - turn; sfx.win(); updateStatus(); return; }
+    doMove(mv);
+  }, 40);
+}
+
+function cellClick(r, c) {
+  if (gameOver !== null || thinking || turn !== humanSide) return;
+  const p = board[r][c];
+  if (p && p.s === humanSide) {
+    sfx.select();
+    selected = { r, c };
+    legal = genMoves(board, humanSide).filter(m => m.r === r && m.c === c);
+    render();
+    return;
+  }
+  if (selected !== null) {
+    const mv = legal.find(m => m.nr === r && m.nc === c);
+    if (mv) { doMove(mv); return; }
+  }
+  selected = null; legal = [];
+  render();
+}
+
+function undo() {
+  if (thinking || history.length === 0) return;
+  gameOver = null; selected = null; legal = [];
+  while (history.length > 0 && turn !== humanSide) {
+    const st = history.pop();
+    board = st.board; turn = st.turn;
+  }
+  render();
+  updateStatus();
+  if (turn !== humanSide) scheduleAI();
+}
+
+function newGame() {
+  board = newBoard();
+  turn = 0; history = []; selected = null; legal = []; gameOver = null; thinking = false;
+  render();
+  updateStatus();
+  if (audioCtx) sfx.start();
+  if (turn !== humanSide) scheduleAI();
+}
+
+document.querySelectorAll('input[name=side]').forEach(inp => {
+  inp.addEventListener('change', () => {
+    humanSide = parseInt(inp.value, 10);
+    newGame();
+  });
+});
+document.getElementById('newGame').addEventListener('click', newGame);
+document.getElementById('undo').addEventListener('click', undo);
+document.getElementById('soundBtn').addEventListener('click', () => {
+  muted = !muted;
+  document.getElementById('soundBtn').textContent = muted ? '🔇 静音' : '🔊 音效';
+  if (!muted) sfx.start();
+});
+
+newGame();
+</script>
+</body>
+</html>
