@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>陆战棋 · 人机对战</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#26262e;color:#e8e8ec;font-family:"Microsoft YaHei","PingFang SC","Noto Sans CJK SC",sans-serif;min-height:100vh;display:flex;justify-content:center;padding:14px}
+#wrap{width:100%;max-width:920px}
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:10px}
+h1{font-size:22px;letter-spacing:2px}
+h1 small{font-size:12px;color:#9aa0b0;letter-spacing:0;margin-left:8px;font-weight:normal}
+#toolbar{display:flex;gap:8px;flex-wrap:wrap}
+button{background:#3d4450;color:#e8e8ec;border:1px solid #555e6d;border-radius:8px;padding:7px 14px;font-size:14px;cursor:pointer;font-family:inherit}
+button:hover:not(:disabled){background:#4a5262}
+button:disabled{opacity:.4;cursor:default}
+button.primary{background:#b3542e;border-color:#c96a42}
+button.primary:hover:not(:disabled){background:#c96339}
+#modeBox{display:flex;gap:10px;align-items:center;font-size:14px;color:#c3c8d6;background:#3d4450;border:1px solid #555e6d;border-radius:8px;padding:6px 10px}
+#modeBox.off{opacity:.5;pointer-events:none}
+#selFormation{background:#3d4450;color:#e8e8ec;border:1px solid #555e6d;border-radius:8px;padding:7px 8px;font-size:14px;font-family:inherit}
+#selFormation:disabled{opacity:.5}
+#status{background:#33363f;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:14px;min-height:38px;display:flex;align-items:center;gap:10px}
+#status .dot{width:10px;height:10px;border-radius:50%;flex:none}
+#main{display:flex;gap:14px;align-items:flex-start}
+#boardBox{flex:none;background:linear-gradient(160deg,#4a3a2b,#3a2d21);border-radius:14px;padding:12px;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+canvas{display:block;width:100%;max-width:396px;height:auto;touch-action:manipulation}
+#side{flex:1;min-width:230px;display:flex;flex-direction:column;gap:10px}
+.card{background:#33363f;border-radius:10px;padding:10px 12px}
+.card h3{font-size:14px;color:#aeb6c8;margin-bottom:6px;font-weight:normal}
+#armies{font-size:13px;line-height:1.9}
+#armies .red{color:#ff8a80}
+#armies .blue{color:#8ab4ff}
+#log{height:300px;overflow-y:auto;font-size:12.5px;line-height:1.75}
+#log .ln{border-bottom:1px dashed #454956;padding:2px 0}
+#log .red{color:#ff8a80}
+#log .blue{color:#8ab4ff}
+#log .sys{color:#ffd54f}
+details{font-size:12.5px;line-height:1.8;color:#c3c8d6}
+summary{cursor:pointer;color:#aeb6c8;font-size:14px}
+details li{margin-left:18px}
+#modalMask{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:10}
+#modal{background:#3a3f4b;border-radius:14px;padding:28px 40px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+#modal h2{font-size:26px;margin-bottom:8px}
+#modal p{color:#aeb6c8;margin-bottom:18px;font-size:14px}
+@media(max-width:700px){#main{flex-direction:column;align-items:center}#side{width:100%;min-width:0}#log{height:170px}}
+</style>
+</head>
+<body>
+<div id="wrap">
+<header>
+<h1>陆战棋<small>军棋 · 明棋 · 人机对战</small></h1>
+<div id="toolbar">
+<span id="modeBox"><label><input type="radio" name="mode" value="dark" checked>暗棋</label><label><input type="radio" name="mode" value="open">明棋</label></span>
+<select id="selFormation">
+<option value="random">随机布局</option>
+<option value="0">三角雷阵</option>
+<option value="1">闪电阵</option>
+<option value="2">均衡阵</option>
+<option value="3">铁桶阵</option>
+</select>
+<button id="btnRandom">重新布阵</button>
+<button id="btnStart" class="primary">开始游戏</button>
+<button id="btnUndo">悔棋</button>
+<button id="btnResign">认输</button>
+<button id="btnSound">音效：开</button>
+<button id="btnNew">重新开始</button>
+</div>
+</header>
+<div id="status"><span class="dot" id="turnDot"></span><span id="statusText"></span></div>
+<div id="main">
+<div id="boardBox"><canvas id="board"></canvas></div>
+<div id="side">
+<div class="card"><h3>兵力</h3><div id="armies"></div></div>
+<div class="card"><h3>战报</h3><div id="log"></div></div>
+<div class="card"><details><summary>规则说明</summary>
+<ul>
+<li>粗线为铁路：铁路上可直线走任意步（不可越子），工兵可在铁路上拐弯；细线为公路，每次一步。</li>
+<li>大小顺序：司令＞军长＞师长＞旅长＞团长＞营长＞连长＞排长＞工兵。大吃小，同级同归于尽。</li>
+<li>炸弹与任何棋子同归于尽；地雷不可移动，只有工兵能排除（炸弹与地雷同归于尽），其余棋子触雷阵亡；若工兵全部阵亡，其余棋子可与地雷同归于尽（变体规则）。</li>
+<li>行营（圆圈）中的棋子免受攻击；大本营中的棋子不能移动（开局后进入大本营的棋子同样被冻结、不能再动），军旗必须放在大本营。</li>
+<li>布阵限制：炸弹不能放在最前一行，地雷只能放在最后两行。</li>
+<li>任何棋子都可以夺对方军旗；夺取军旗或令对方无子可动即获胜。</li>
+<li>暗棋模式：对方棋子背面朝上，发生战斗后双方棋子亮明；一方司令阵亡时，其军旗位置会暴露给对方。</li>
+</ul>
+</details></div>
+</div>
+</div>
+</div>
+<div id="modalMask"><div id="modal"><h2 id="modalTitle"></h2><p id="modalText"></p><button id="btnAgain" class="primary">再来一局</button></div></div>
+<script>
+"use strict";
+const ROWS=12,COLS=5,N=60;
+const id=(r,c)=>r*COLS+c,rowOf=i=>Math.floor(i/COLS),colOf=i=>i%COLS;
+const CAMP=new Set([id(2,1),id(2,3),id(3,2),id(4,1),id(4,3),id(7,1),id(7,3),id(8,2),id(9,1),id(9,3)]);
+const HQ=new Set([id(0,1),id(0,3),id(11,1),id(11,3)]);
+const KIND={
+flag:{name:"军旗",rank:-1,count:1,val:100000},
+marshal:{name:"司令",rank:10,count:1,val:40},
+general:{name:"军长",rank:9,count:1,val:30},
+division:{name:"师长",rank:8,count:2,val:22},
+brigade:{name:"旅长",rank:7,count:2,val:16},
+colonel:{name:"团长",rank:6,count:2,val:12},
+major:{name:"营长",rank:5,count:2,val:9},
+captain:{name:"连长",rank:4,count:3,val:6.5},
+lieutenant:{name:"排长",rank:3,count:3,val:4.5},
+engineer:{name:"工兵",rank:2,count:3,val:8},
+mine:{name:"地雷",rank:1,count:3,val:7},
+bomb:{name:"炸弹",rank:0,count:2,val:10}
+};
+const adj=Array.from({length:N},()=>[]);
+(function(){
+const seen=new Set();
+function add(a,b,rail){const k=Math.min(a,b)+"_"+Math.max(a,b);if(seen.has(k))return;seen.add(k);adj[a].push({to:b,rail:rail});adj[b].push({to:a,rail:rail});}
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS-1;c++)add(id(r,c),id(r,c+1),r===1||r===5||r===6||r===10);
+for(let r=0;r<5;r++)for(let c=0;c<COLS;c++)add(id(r,c),id(r+1,c),r>=1&&(c===0||c===4));
+for(let r=6;r<11;r++)for(let c=0;c<COLS;c++)add(id(r,c),id(r+1,c),r<=9&&(c===0||c===4));
+add(id(5,0),id(6,0),true);add(id(5,2),id(6,2),true);add(id(5,4),id(6,4),true);
+const dg=[[[1,0],[2,1]],[[2,1],[3,2]],[[1,2],[2,1]],[[2,1],[3,0]],[[1,2],[2,3]],[[2,3],[3,4]],[[1,4],[2,3]],[[2,3],[3,2]],
+[[3,0],[4,1]],[[4,1],[5,2]],[[3,2],[4,1]],[[4,1],[5,0]],[[3,2],[4,3]],[[4,3],[5,4]],[[3,4],[4,3]],[[4,3],[5,2]],
+[[6,0],[7,1]],[[7,1],[8,2]],[[6,2],[7,1]],[[7,1],[8,0]],[[6,2],[7,3]],[[7,3],[8,4]],[[6,4],[7,3]],[[7,3],[8,2]],
+[[8,0],[9,1]],[[9,1],[10,2]],[[8,2],[9,1]],[[9,1],[10,0]],[[8,2],[9,3]],[[9,3],[10,4]],[[8,4],[9,3]],[[9,3],[10,2]]];
+for(const t of dg)add(id(t[0][0],t[0][1]),id(t[1][0],t[1][1]),false);
+})();
+const onRail=i=>adj[i].some(e=>e.rail);
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+const FORMATIONS=[
+{name:"三角雷阵",desc:"三雷三角护旗，炸弹居中策应，稳守反击",
+anchors:[["mine",[11,0]],["mine",[11,2]],["mine",[10,1]],["bomb",[10,3]],["bomb",[9,2]],["lieutenant",[11,3]],["captain",[11,4]],["division",[10,4]],["brigade",[10,2]],["general",[9,4]],["marshal",[8,1]]]},
+{name:"闪电阵",desc:"一字雷保底，司令军长压前，工兵两翼开路速攻",
+anchors:[["mine",[11,0]],["mine",[11,2]],["mine",[11,4]],["bomb",[8,1]],["bomb",[8,3]],["lieutenant",[11,3]],["division",[6,1]],["colonel",[6,2]],["brigade",[6,3]],["engineer",[6,0]],["engineer",[6,4]],["marshal",[7,0]],["general",[7,2]]]},
+{name:"均衡阵",desc:"师长炸弹组合伏击，大子居中可攻可守",
+anchors:[["mine",[11,0]],["mine",[11,2]],["mine",[10,0]],["bomb",[9,2]],["bomb",[10,3]],["lieutenant",[11,3]],["captain",[11,4]],["division",[10,2]],["brigade",[10,4]],["marshal",[8,0]],["general",[9,4]],["engineer",[7,2]]]},
+{name:"铁桶阵",desc:"重雷加炸弹贴身护旗，大子居中固守待变",
+anchors:[["mine",[11,2]],["mine",[10,1]],["mine",[10,0]],["bomb",[11,0]],["bomb",[10,2]],["lieutenant",[11,3]],["captain",[11,4]],["division",[9,2]],["brigade",[10,3]],["marshal",[8,1]],["general",[8,3]]]}
+];
+function genSetupFormation(owner,fm){
+const arr=Array(N).fill(null);
+const flagRight=Math.random()<0.5;
+const backR=owner===0?0:11;
+const mir=rc=>{let r=rc[0],c=rc[1];if(flagRight)c=4-c;if(owner===0)r=11-r;return id(r,c);};
+arr[id(backR,flagRight?3:1)]={owner,kind:"flag"};
+const pool=[];
+for(const k in KIND)if(k!=="flag")for(let i=0;i<KIND[k].count;i++)pool.push(k);
+const used=new Set();
+for(const t of fm.anchors){
+const s=mir(t[1]);
+arr[s]={owner,kind:t[0]};
+pool.splice(pool.indexOf(t[0]),1);
+used.add(s);
+}
+const rows=owner===0?[0,1,2,3,4,5]:[6,7,8,9,10,11];
+const squares=[];
+for(const r of rows)for(let c=0;c<COLS;c++){const s=id(r,c);if(!CAMP.has(s)&&!HQ.has(s)&&!used.has(s))squares.push(s);}
+shuffle(squares);
+for(const s of squares)arr[s]={owner,kind:pool.pop()};
+return arr;
+}
+function aiSetup(owner){
+if(Math.random()<0.3)return genSetup(owner);
+return genSetupFormation(owner,FORMATIONS[Math.floor(Math.random()*FORMATIONS.length)]);
+}
+function genSetup(owner){
+const arr=Array(N).fill(null);
+const rows=owner===0?[0,1,2,3,4,5]:[6,7,8,9,10,11];
+const hqs=[...HQ].filter(s=>rows.includes(rowOf(s)));
+const flagSq=hqs[Math.floor(Math.random()*hqs.length)];
+arr[flagSq]={owner,kind:"flag"};
+const pool=[];
+for(const k in KIND)if(k!=="flag")for(let i=0;i<KIND[k].count;i++)pool.push(k);
+const hqPool=pool.filter(k=>k!=="mine"&&k!=="bomb");
+const hqPick=hqPool[Math.floor(Math.random()*hqPool.length)];
+pool.splice(pool.indexOf(hqPick),1);
+arr[hqs.find(s=>s!==flagSq)]={owner,kind:hqPick};
+const squares=[];
+for(const r of rows)for(let c=0;c<COLS;c++){const s=id(r,c);if(!CAMP.has(s)&&!HQ.has(s))squares.push(s);}
+const back2=owner===0?[0,1]:[10,11];
+const front=owner===0?5:6;
+const used=new Set();
+const mineSpots=shuffle(squares.filter(s=>back2.includes(rowOf(s))));
+for(let i=0;i<3;i++){arr[mineSpots[i]]={owner,kind:"mine"};used.add(mineSpots[i]);}
+for(let i=0;i<3;i++)pool.splice(pool.indexOf("mine"),1);
+const bombSpots=shuffle(squares.filter(s=>!used.has(s)&&rowOf(s)!==front));
+arr[bombSpots[0]]={owner,kind:"bomb"};arr[bombSpots[1]]={owner,kind:"bomb"};
+used.add(bombSpots[0]);used.add(bombSpots[1]);
+pool.splice(pool.indexOf("bomb"),1);pool.splice(pool.indexOf("bomb"),1);
+const rest=shuffle(squares.filter(s=>!used.has(s)));
+for(let i=0;i<pool.length;i++)arr[rest[i]]={owner,kind:pool[i]};
+return arr;
+}
+function deployOk(brd,owner){
+const back2=owner===0?[0,1]:[10,11];
+const front=owner===0?5:6;
+for(let s=0;s<N;s++){
+const p=brd[s];if(!p||p.owner!==owner)continue;
+if(CAMP.has(s))return false;
+if(p.kind==="flag"&&!HQ.has(s))return false;
+if(p.kind==="mine"&&!back2.includes(rowOf(s)))return false;
+if(p.kind==="bomb"&&rowOf(s)===front)return false;
+}
+return true;
+}
+function genMoves(brd,player){
+const res=[];
+for(let s=0;s<N;s++){
+const p=brd[s];
+if(!p||p.owner!==player)continue;
+if(p.kind==="flag"||p.kind==="mine")continue;
+if(HQ.has(s))continue;
+for(const e of adj[s]){
+if(e.rail)continue;
+const t=brd[e.to];
+if(!t)res.push({from:s,to:e.to});
+else if(t.owner!==player&&!CAMP.has(e.to))res.push({from:s,to:e.to,attack:true});
+}
+if(!onRail(s))continue;
+if(p.kind==="engineer"){
+const seen=new Set([s]);const q=[s];
+while(q.length){
+const u=q.shift();
+for(const e of adj[u]){
+if(!e.rail||seen.has(e.to))continue;
+seen.add(e.to);
+const t=brd[e.to];
+if(!t){q.push(e.to);res.push({from:s,to:e.to});}
+else if(t.owner!==player&&!CAMP.has(e.to))res.push({from:s,to:e.to,attack:true});
+}
+}
+}else{
+for(const e0 of adj[s]){
+if(!e0.rail)continue;
+const dr=rowOf(e0.to)-rowOf(s),dc=colOf(e0.to)-colOf(s);
+let u=s;
+for(;;){
+const nr=rowOf(u)+dr,nc=colOf(u)+dc;
+if(nr<0||nr>=ROWS||nc<0||nc>=COLS)break;
+const v=id(nr,nc);
+const ed=adj[u].find(e=>e.to===v);
+if(!ed||!ed.rail)break;
+const t=brd[v];
+if(!t){res.push({from:s,to:v});u=v;}
+else{if(t.owner!==player&&!CAMP.has(v))res.push({from:s,to:v,attack:true});break;}
+}
+}
+}
+}
+return res;
+}
+function fight(a,d,engAlive){
+if(d.kind==="flag")return "win";
+if(a.kind==="bomb"||d.kind==="bomb")return "both";
+if(d.kind==="mine"){
+if(a.kind==="engineer")return "win";
+if(!engAlive)return "both";
+return "lose";
+}
+if(KIND[a.kind].rank===KIND[d.kind].rank)return "both";
+return KIND[a.kind].rank>KIND[d.kind].rank?"win":"lose";
+}
+function applyMove(brd,mv){
+const a=brd[mv.from],d=brd[mv.to];
+brd[mv.from]=null;
+if(!d){brd[mv.to]=a;return {type:"move"};}
+const engAlive=brd.some(p=>p&&p.owner===a.owner&&p.kind==="engineer");
+const r=fight(a,d,engAlive);
+if(r==="win"){brd[mv.to]=a;return {type:"capture",dead:d,flag:d.kind==="flag"};}
+if(r==="both"){brd[mv.to]=null;return {type:"both",deadA:a,deadD:d};}
+brd[mv.to]=d;return {type:"lose",dead:a};
+}
+function bfsDist(start){
+const d=Array(N).fill(-1);d[start]=0;const q=[start];
+let head=0;
+while(head<q.length){
+const u=q[head++];
+for(const e of adj[u])if(d[e.to]<0){d[e.to]=d[u]+1;q.push(e.to);}
+}
+return d;
+}
+function flagSquare(brd,owner){
+for(let s=0;s<N;s++){const p=brd[s];if(p&&p.owner===owner&&p.kind==="flag")return s;}
+return -1;
+}
+function bestEnemyGain(nb,enemy){
+let g=0;
+const ce=nb.some(p=>p&&p.owner===enemy&&p.kind==="engineer");
+for(const mv of genMoves(nb,enemy)){
+if(!mv.attack)continue;
+const a=nb[mv.from],d=nb[mv.to];
+if(d.kind==="flag")return 100000;
+const r=fight(a,d,ce);
+const gain=r==="win"?KIND[d.kind].val:r==="both"?KIND[d.kind].val-KIND[a.kind].val:-KIND[a.kind].val;
+if(gain>g)g=gain;
+}
+return g;
+}
+function evalMove(brd,owner,selfFlagDist,mv){
+const enemy=1-owner;
+const a=brd[mv.from],d=brd[mv.to];
+const dark=mode==="dark";
+const nb=brd.slice();
+let sc=0,win=false;
+const engAlive=(countKind(brd,owner,"engineer")-(a.kind==="engineer"?1:0))>0;
+if(d&&dark&&!d.known[owner]){
+nb[mv.from]=null;nb[mv.to]=a;
+const pool=unknownPool(brd,owner,enemy);
+const rr2=rowOf(mv.to);
+const eback2=enemy===1?[10,11]:[0,1];
+const efront=enemy===1?6:5;
+const isHQ=HQ.has(mv.to);
+const fp=isHQ?flagProbAt(brd,owner,mv.to):0;
+if(isHQ&&fp>=1)win=true;
+else{
+let tot=0;const ent=[];
+for(const k in pool){
+if(k==="flag")continue;
+if(isHQ&&(k==="mine"||k==="bomb"))continue;
+if(!isHQ&&!eback2.includes(rr2)&&k==="mine")continue;
+if(!isHQ&&rr2===efront&&k==="bomb")continue;
+ent.push(k);tot+=pool[k];
+}
+let egr=0;
+if(tot>0)for(const k of ent){
+const fr=fight(a,{kind:k},engAlive);
+const g=fr==="win"?KIND[k].val:fr==="both"?KIND[k].val-KIND[a.kind].val:-KIND[a.kind].val;
+egr+=g*pool[k]/tot;
+}
+if(isHQ){
+const probe=KIND[a.kind].val<=7||moveCount>30;
+if(fp>0&&probe)sc+=fp*1e9+(1-fp)*egr;
+else sc+=0.3*egr-(probe?0:1);
+}else{
+sc+=egr+2.5;
+}
+}
+if(win)return 1e9;
+}else{
+const out=applyMove(nb,mv);
+if(out.flag)return 1e9;
+if(out.type==="capture")sc+=KIND[out.dead.kind].val;
+else if(out.type==="both")sc+=KIND[out.deadD.kind].val-KIND[out.deadA.kind].val;
+else if(out.type==="lose")sc-=KIND[out.dead.kind].val;
+if(out.type==="move"&&HQ.has(mv.to))sc-=8;
+}
+const eg=bestEnemyGain(nb,enemy);
+if(eg>=100000)return -1e9;
+sc-=eg*0.95;
+const p=nb[mv.to];
+if(p){
+const dir=owner===0?1:-1;
+const adv=(rowOf(mv.to)-rowOf(mv.from))*dir;
+let ownN=0;
+for(let s=0;s<N;s++){const q=nb[s];if(q&&q.owner===owner)ownN++;}
+const urgency=1+Math.min(1.5,moveCount*0.004)+(25-ownN)*0.06;
+sc+=0.12*Math.max(-3,Math.min(3,adv))*(p.kind==="engineer"?2.5:1)*urgency;
+if(CAMP.has(mv.to))sc+=1;
+if(p.kind==="engineer"){
+const erow=rowOf(mv.to);
+const goal=owner===0?11:0;
+sc+=0.08*(5-Math.abs(goal-erow));
+}
+let def=0;
+for(let s=0;s<N;s++){
+const q=nb[s];
+if(q&&q.owner===owner&&q.kind!=="flag"&&q.kind!=="mine"&&!HQ.has(s)&&selfFlagDist[s]>=0&&selfFlagDist[s]<=3)def++;
+}
+if(def===0)sc-=8;else if(def===1)sc-=2;
+if(mode==="dark"){
+let unkAdj=0;
+for(const e of adj[mv.to]){const q=nb[e.to];if(q&&q.owner===enemy&&!q.known[owner])unkAdj++;}
+sc-=unkAdj*(KIND[p.kind].val>=12?1.2:0.3);
+}
+}
+return sc+Math.random()*0.4;
+}
+function aiChoose(brd,owner,selfFlagDist){
+const moves=genMoves(brd,owner);
+let best=null,bs=-Infinity;
+for(const mv of moves){
+const sc=evalMove(brd,owner,selfFlagDist,mv);
+if(sc>bs){bs=sc;best=mv;}
+}
+return best;
+}
+let board=null,phase="deploy",turn=1,selected=-1,selDeploy=-1,curLegal=[],lastMove=null,undoStack=[],aiTimer=null,distFlag0=null,noCombat=0,mode="dark",moveCount=0;
+let audioCtx=null,soundOn=true;
+function ac(){
+if(typeof window==="undefined")return null;
+if(!audioCtx){const C=window.AudioContext||window.webkitAudioContext;if(!C)return null;audioCtx=new C();}
+if(audioCtx.state==="suspended")audioCtx.resume();
+return audioCtx;
+}
+function tone(freq,dur,type,vol,when,slideTo){
+if(!soundOn)return;
+const c=ac();if(!c)return;
+const t0=c.currentTime+(when||0);
+const o=c.createOscillator(),g=c.createGain();
+o.type=type;o.frequency.setValueAtTime(freq,t0);
+if(slideTo)o.frequency.exponentialRampToValueAtTime(slideTo,t0+dur);
+g.gain.setValueAtTime(vol,t0);
+g.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+o.connect(g);g.connect(c.destination);
+o.start(t0);o.stop(t0+dur+0.05);
+}
+function boom(dur,vol,fq){
+if(!soundOn)return;
+const c=ac();if(!c)return;
+const n=Math.floor(c.sampleRate*dur);
+const buf=c.createBuffer(1,n,c.sampleRate);
+const d=buf.getChannelData(0);
+for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*(1-i/n)*(1-i/n);
+const src=c.createBufferSource();src.buffer=buf;
+const f=c.createBiquadFilter();f.type="lowpass";f.frequency.value=fq;
+const g=c.createGain();g.gain.value=vol;
+src.connect(f);f.connect(g);g.connect(c.destination);
+src.start();
+}
+const SFX={
+select(){tone(700,.06,"triangle",.16);},
+move(){tone(340,.07,"triangle",.22);tone(500,.05,"triangle",.1,.03);},
+capture(){tone(620,.09,"square",.13);tone(310,.12,"triangle",.28,.05);boom(.12,.12,1200);},
+die(){tone(240,.16,"sawtooth",.18,0,90);boom(.1,.12,900);},
+defuse(){boom(.14,.2,1600);tone(880,.08,"triangle",.16,.05);},
+both(){boom(.3,.45,700);tone(180,.25,"sawtooth",.16,.02,60);},
+mine(){boom(.38,.5,500);tone(120,.3,"sawtooth",.2,.03,40);},
+hq(){tone(260,.1,"triangle",.2);tone(200,.14,"triangle",.2,.1);},
+win(){[523,659,784,1047].forEach((f,i)=>tone(f,.18,"triangle",.2,i*.13));},
+lose(){[392,311,262,196].forEach((f,i)=>tone(f,.22,"triangle",.2,i*.15));},
+draw(){tone(440,.2,"triangle",.2);tone(349,.25,"triangle",.2,.2);},
+invalid(){tone(180,.15,"square",.13);}
+};
+function playCombatSfx(out){
+if(out.type==="move"){if(HQ.has(out.to))SFX.hq();else SFX.move();return;}
+if(out.type==="capture"){if(out.dead.kind==="mine")SFX.defuse();else SFX.capture();return;}
+if(out.type==="both"){SFX.both();return;}
+if(out.type==="lose"){if(out.mineHit)SFX.mine();else SFX.die();}
+}
+function countKind(brd,owner,kind){let n=0;for(let s=0;s<N;s++){const p=brd[s];if(p&&p.owner===owner&&p.kind===kind)n++;}return n;}
+function unknownPool(brd,view,owner){
+const pool={};
+for(let s=0;s<N;s++){const p=brd[s];if(p&&p.owner===owner&&!p.known[view])pool[p.kind]=(pool[p.kind]||0)+1;}
+return pool;
+}
+function flagProbAt(brd,view,sq){
+const enemy=1-view;
+let fSq=-1,fKnown=false;
+for(let s=0;s<N;s++){const p=brd[s];if(p&&p.owner===enemy&&p.kind==="flag"){fSq=s;fKnown=p.known[view];break;}}
+if(fSq>=0&&fKnown)return sq===fSq?1:0;
+const br=enemy===0?0:11;
+const cands=[...HQ].filter(h=>rowOf(h)===br);
+let possible=0;
+for(const h of cands){
+const p=brd[h];
+if(p&&p.known[view]&&p.kind!=="flag")continue;
+possible++;
+}
+if(possible===0)return fSq===sq?1:0;
+return cands.includes(sq)?1/possible:0;
+}
+const M=34,X=76,Y=52,RV=46,PR=21;
+const LW=M*2+X*(COLS-1),LH=M*2+Y*11+RV;
+function pos(i){
+const r=rowOf(i),c=colOf(i);
+return {x:M+c*X,y:r<=5?M+r*Y:M+Y*5+RV+(r-5)*Y};
+}
+function drawLine(a,b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+function drawStatic(){
+ctx.save();
+ctx.beginPath();
+if(ctx.roundRect)ctx.roundRect(0,0,LW,LH,12);else ctx.rect(0,0,LW,LH);
+ctx.clip();
+const g=ctx.createLinearGradient(0,0,0,LH);
+g.addColorStop(0,"#efe0c0");g.addColorStop(.5,"#e8d5ac");g.addColorStop(1,"#efe0c0");
+ctx.fillStyle=g;ctx.fillRect(0,0,LW,LH);
+ctx.strokeStyle="#a9906c";ctx.lineWidth=1.4;
+for(let s=0;s<N;s++)for(const e of adj[s])if(!e.rail&&e.to>s)drawLine(pos(s),pos(e.to));
+ctx.strokeStyle="#5c4a33";ctx.lineWidth=5;
+for(let s=0;s<N;s++)for(const e of adj[s])if(e.rail&&e.to>s)drawLine(pos(s),pos(e.to));
+ctx.strokeStyle="#d9c49a";ctx.lineWidth=1.1;
+for(let s=0;s<N;s++)for(const e of adj[s])if(e.rail&&e.to>s)drawLine(pos(s),pos(e.to));
+for(const s of CAMP){
+const p=pos(s);
+ctx.beginPath();ctx.arc(p.x,p.y,11,0,Math.PI*2);
+ctx.fillStyle="rgba(163,130,80,.30)";ctx.fill();
+ctx.strokeStyle="#8b7355";ctx.lineWidth=1.4;ctx.stroke();
+}
+for(const s of HQ){
+const p=pos(s);
+ctx.beginPath();ctx.arc(p.x,p.y,13,0,Math.PI*2);
+ctx.fillStyle="rgba(178,120,60,.25)";ctx.fill();
+ctx.strokeStyle="#8b6a45";ctx.lineWidth=1.6;ctx.stroke();
+ctx.beginPath();
+for(let k=0;k<5;k++){
+const a1=-Math.PI/2+k*2*Math.PI*2/5;
+const x1=p.x+Math.cos(a1)*10,y1=p.y+Math.sin(a1)*10;
+if(k===0)ctx.moveTo(x1,y1);else ctx.lineTo(x1,y1);
+}
+ctx.closePath();ctx.strokeStyle="#8b6a45";ctx.lineWidth=1.2;ctx.stroke();
+}
+ctx.fillStyle="#a08b6a";ctx.font="12px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+ctx.fillText("分 界 线",LW/2,M+Y*5+RV/2);
+ctx.restore();
+}
+function drawPiece(s,p){
+const q=pos(s);
+if(mode==="dark"&&p.owner===0&&!p.known[1]){
+ctx.beginPath();ctx.arc(q.x,q.y,PR,0,Math.PI*2);
+const g2=ctx.createRadialGradient(q.x-6,q.y-7,3,q.x,q.y,PR+4);
+g2.addColorStop(0,"#5b6572");g2.addColorStop(1,"#343b45");
+ctx.fillStyle=g2;ctx.fill();
+ctx.lineWidth=2;ctx.strokeStyle="rgba(0,0,0,.45)";ctx.stroke();
+ctx.fillStyle="#9aa7b8";ctx.font="bold 16px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+ctx.fillText("？",q.x,q.y+.5);
+return;
+}
+const red=p.owner===1;
+const grad=ctx.createRadialGradient(q.x-6,q.y-7,3,q.x,q.y,PR+4);
+if(red){grad.addColorStop(0,"#e35d55");grad.addColorStop(1,"#a31f1a");}
+else{grad.addColorStop(0,"#4d8fe0");grad.addColorStop(1,"#173f86");}
+ctx.beginPath();ctx.arc(q.x,q.y,PR,0,Math.PI*2);
+ctx.fillStyle=grad;ctx.fill();
+ctx.lineWidth=2;ctx.strokeStyle=p.kind==="flag"?"#ffd54f":"rgba(0,0,0,.4)";ctx.stroke();
+ctx.fillStyle="#fff";ctx.font="bold 13px sans-serif";ctx.textAlign="center";ctx.textBaseline="middle";
+ctx.fillText(KIND[p.kind].name,q.x,q.y+.5);
+}
+function ring(s,color,lw){
+const q=pos(s);
+ctx.beginPath();ctx.arc(q.x,q.y,PR+3.5,0,Math.PI*2);
+ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke();
+}
+function draw(){
+ctx.clearRect(0,0,LW,LH);
+drawStatic();
+if(lastMove){
+ring(lastMove.from,"rgba(255,193,7,.55)",3);
+ring(lastMove.to,"rgba(255,193,7,.55)",3);
+}
+for(let s=0;s<N;s++){const p=board[s];if(p)drawPiece(s,p);}
+if(phase==="deploy"&&selDeploy>=0)ring(selDeploy,"#ffd54f",3);
+if(selected>=0){
+ring(selected,"#ffd54f",3);
+for(const mv of curLegal){
+const q=pos(mv.to);
+if(mv.attack)ring(mv.to,"rgba(244,67,54,.9)",3);
+else{ctx.beginPath();ctx.arc(q.x,q.y,6,0,Math.PI*2);ctx.fillStyle="rgba(76,175,80,.85)";ctx.fill();}
+}
+}
+}
+let ctx=null,canvas=null;
+function initCanvas(){
+canvas=document.getElementById("board");
+const dpr=window.devicePixelRatio||1;
+canvas.width=LW*dpr;canvas.height=LH*dpr;
+ctx=canvas.getContext("2d");
+ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function pickSquare(ev){
+const rect=canvas.getBoundingClientRect();
+const x=(ev.clientX-rect.left)*LW/rect.width;
+const y=(ev.clientY-rect.top)*LH/rect.height;
+let best=-1,bd=24*24;
+for(let s=0;s<N;s++){
+const p=pos(s);
+const d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);
+if(d<bd){bd=d;best=s;}
+}
+return best;
+}
+const $=t=>document.querySelector(t);
+function sideName(o){return o===1?"我方":"敌方";}
+function log(html,cls){
+const el=document.createElement("div");
+el.className="ln"+(cls?" "+cls:"");
+el.innerHTML=html;
+const box=$("#log");
+box.prepend(el);
+while(box.children.length>80)box.lastChild.remove();
+}
+function applyAndLog(brd,mv,mover){
+const a=brd[mv.from],d=brd[mv.to];
+const out=applyMove(brd,mv);
+if(out.type!=="move"&&mode==="dark"){
+if(a){a.known[0]=true;a.known[1]=true;}
+if(d){d.known[0]=true;d.known[1]=true;}
+let mf=null;
+if(out.type==="capture"&&out.dead.kind==="marshal")mf=out.dead;
+else if(out.type==="both"){if(out.deadA.kind==="marshal")mf=out.deadA;if(out.deadD.kind==="marshal")mf=out.deadD;}
+else if(out.type==="lose"&&out.dead.kind==="marshal")mf=out.dead;
+if(mf){
+for(let s=0;s<N;s++){const q=brd[s];if(q&&q.owner===mf.owner&&q.kind==="flag"){q.known[0]=true;q.known[1]=true;break;}}
+log(`${sideName(mf.owner)}的司令阵亡，军旗位置暴露！`,"sys");
+}
+}
+if(typeof playCombatSfx!=="undefined"){out.to=mv.to;out.mineHit=!!(d&&d.kind==="mine");playCombatSfx(out);}
+const red=mover==="我方",other=red?"敌方":"我方";
+const nmq=p=>`<b>${KIND[p.kind].name}</b>`;
+if(out.type==="move"&&HQ.has(mv.to))log(`${mover}的 ${nmq(a)} 进入大本营，此后不能再移动`,"sys");
+const nm=p=>`<b>${KIND[p.kind].name}</b>`;
+if(out.type==="move"){return out;}
+if(out.flag){log(`${mover}的 ${nm(a)} 夺取了 ${other}的<b>军旗</b>！`,red?"red":"blue");return out;}
+if(out.type==="capture"){
+if(out.dead.kind==="mine")log(`${mover}的<b>工兵</b> 排除了 ${other}的<b>地雷</b>`,red?"red":"blue");
+else log(`${mover}的 ${nm(a)} 吃掉 ${other}的 ${nm(out.dead)}`,red?"red":"blue");
+return out;
+}
+if(out.type==="both"){log(`同归于尽：${mover}的 ${nm(out.deadA)} × ${other}的 ${nm(out.deadD)}`,red?"red":"blue");return out;}
+if(out.dead&&d&&d.kind==="mine")log(`${mover}的 ${nm(out.dead)} 撞上 ${other}的<b>地雷</b>阵亡`,red?"red":"blue");
+else log(`${mover}的 ${nm(out.dead)} 被 ${other}的 ${nm(d)} 吃掉`,red?"red":"blue");
+return out;
+}
+function updateArmies(){
+let r=0,b=0,rm=0,bm=0;
+for(let s=0;s<N;s++){
+const p=board[s];if(!p)continue;
+if(p.owner===1){r++;if(p.kind!=="mine"&&p.kind!=="flag"&&!HQ.has(s))rm++;}
+else{b++;if(p.kind!=="mine"&&p.kind!=="flag"&&!HQ.has(s))bm++;}
+}
+$("#armies").innerHTML=`<span class="red">我方（红）：剩 ${r} 枚，可动 ${rm} 枚</span><br><span class="blue">敌方（蓝）：剩 ${b} 枚，可动 ${bm} 枚</span>`;
+}
+function updateStatus(){
+const dot=$("#turnDot"),txt=$("#statusText");
+if(phase==="deploy"){dot.style.background="#ffd54f";txt.textContent="布阵阶段：点击我方两枚棋子可交换位置，点击「随机布阵」换一套，满意后点「开始游戏」";}
+else if(phase==="play"){
+if(turn===1){dot.style.background="#e35d55";txt.textContent="轮到你走棋（红方）";}
+else{dot.style.background="#4d8fe0";txt.textContent="敌方思考中…";}
+}else{dot.style.background="#666";txt.textContent="对局结束";}
+}
+function updateButtons(){
+$("#btnRandom").disabled=phase!=="deploy";
+$("#btnStart").disabled=phase!=="deploy";
+$("#btnUndo").disabled=!(phase==="play"&&turn===1&&!aiTimer&&undoStack.length);
+$("#btnResign").disabled=phase!=="play";
+$("#modeBox").className=phase==="deploy"?"":"off";
+$("#selFormation").disabled=phase!=="deploy";
+}
+function setupBoard(a,b){
+board=a.map((p,i)=>p||b[i]);
+for(const p of board){
+if(!p)continue;
+p.known=mode==="open"?{0:true,1:true}:{0:p.owner===0,1:p.owner===1};
+}
+distFlag0=bfsDist(flagSquare(board,0));
+}
+function playerSetup(){
+const sel=$("#selFormation").value;
+if(sel==="random")return genSetup(1);
+return genSetupFormation(1,FORMATIONS[parseInt(sel)]);
+}
+function formationName(){
+const sel=$("#selFormation").value;
+return sel==="random"?"随机布局":FORMATIONS[parseInt(sel)].name;
+}
+function newGame(){
+mode=document.querySelector('input[name="mode"]:checked').value;
+setupBoard(aiSetup(0),playerSetup());
+phase="deploy";turn=1;selected=-1;selDeploy=-1;curLegal=[];lastMove=null;undoStack=[];noCombat=0;moveCount=0;
+if(aiTimer){clearTimeout(aiTimer);aiTimer=null;}
+$("#log").innerHTML="";
+$("#modalMask").style.display="none";
+log("新的对局：上方为敌方（蓝），下方为我方（红）。"+(mode==="dark"?"暗棋模式：敌方棋子背面朝上，交战后亮明。":"明棋模式：双方棋子可见。"),"sys");
+log("我方采用："+formationName()+"。敌方也已自行布阵，可点「重新布阵」更换。","sys");
+updateStatus();updateArmies();updateButtons();draw();
+}
+function startGame(){
+phase="play";turn=1;selDeploy=-1;
+log("战斗开始！红方先行。","sys");
+updateStatus();updateButtons();draw();
+}
+function endGame(winner,reason){
+phase="over";
+if(aiTimer){clearTimeout(aiTimer);aiTimer=null;}
+selected=-1;curLegal=[];
+for(const p of board)if(p){p.known[0]=true;p.known[1]=true;}
+updateStatus();updateButtons();draw();
+const win=winner===1;
+$("#modalTitle").textContent=winner===-1?"🤝 平局":win?"🎉 你赢了！":"💥 你输了";
+$("#modalTitle").style.color=winner===-1?"#ffd54f":win?"#81c784":"#e57373";
+$("#modalText").textContent=reason||"";
+$("#modalMask").style.display="flex";
+log(win?`胜利：${reason}`:`失败：${reason}`,"sys");
+if(winner===-1)SFX.draw();else if(win)SFX.win();else SFX.lose();
+}
+function pushUndo(){
+undoStack.push({b:board.map(p=>p?{owner:p.owner,kind:p.kind,known:{0:p.known[0],1:p.known[1]}}:null),nc:noCombat,mc:moveCount});
+if(undoStack.length>60)undoStack.shift();
+}
+function undo(){
+if(!(phase==="play"&&turn===1&&!aiTimer&&undoStack.length))return;
+const u=undoStack.pop();
+board=u.b;noCombat=u.nc;moveCount=u.mc;
+selected=-1;curLegal=[];lastMove=null;
+log("悔棋一步","sys");
+updateStatus();updateArmies();updateButtons();draw();
+}
+function doHumanMove(mv){
+pushUndo();
+const out=applyAndLog(board,mv,"我方");
+lastMove=mv;selected=-1;curLegal=[];
+moveCount++;
+noCombat=out.type==="move"?noCombat+1:0;
+updateArmies();
+if(out.flag){endGame(1,"夺取了敌方军旗");return;}
+if(genMoves(board,0).length===0){endGame(1,"敌方已无子可动");return;}
+if(noCombat>=80){endGame(-1,"连续40回合无吃子，判和");return;}
+turn=0;updateStatus();updateButtons();draw();
+aiTurn();
+}
+function aiTurn(){
+aiTimer=setTimeout(()=>{
+aiTimer=null;
+if(phase!=="play")return;
+const mv=aiChoose(board,0,distFlag0);
+if(!mv){endGame(1,"敌方已无子可动");return;}
+const out=applyAndLog(board,mv,"敌方");
+lastMove=mv;
+moveCount++;
+noCombat=out.type==="move"?noCombat+1:0;
+updateArmies();
+if(out.flag){endGame(0,"我方军旗被夺");return;}
+if(genMoves(board,1).length===0){endGame(0,"我方已无子可动");return;}
+if(noCombat>=80){endGame(-1,"连续40回合无吃子，判和");return;}
+turn=1;updateStatus();updateButtons();draw();
+},430);
+}
+function onBoardClick(ev){
+const s=pickSquare(ev);
+if(s<0)return;
+if(phase==="deploy"){
+const p=board[s];
+if(selDeploy===s){selDeploy=-1;draw();return;}
+if(selDeploy>=0){
+const a=selDeploy,b=s;selDeploy=-1;
+if(a===b){draw();return;}
+const pa=board[a],pb=board[b];
+if(pb&&pb.owner!==1){log("不能移动敌方的棋子","sys");SFX.invalid();draw();return;}
+board[a]=pb;board[b]=pa;
+if(deployOk(board,1)){log("调整布阵：交换了棋子位置","sys");SFX.move();}
+else{board[a]=pa;board[b]=pb;log("该操作违反布阵规则（行营不能放子、地雷限最后两行、炸弹不能在最前行、军旗在大本营）","sys");SFX.invalid();}
+updateArmies();draw();return;
+}
+if(p&&p.owner===1){selDeploy=s;SFX.select();draw();}
+return;
+}
+if(phase!=="play"||turn!==1)return;
+const p=board[s];
+if(selected>=0){
+const mv=curLegal.find(m=>m.to===s);
+if(mv&&mv.from===selected){doHumanMove(mv);return;}
+if(s===selected){selected=-1;curLegal=[];draw();return;}
+if(p&&p.owner===1&&p.kind!=="flag"&&!HQ.has(s)){
+selected=s;curLegal=genMoves(board,1).filter(m=>m.from===s);SFX.select();draw();return;
+}
+selected=-1;curLegal=[];draw();return;
+}
+if(p&&p.owner===1&&p.kind!=="flag"&&!HQ.has(s)){
+selected=s;curLegal=genMoves(board,1).filter(m=>m.from===s);SFX.select();draw();
+}
+}
+if(typeof document!=="undefined"){
+initCanvas();
+newGame();
+canvas.addEventListener("click",onBoardClick);
+$("#btnRandom").addEventListener("click",()=>{
+setupBoard(aiSetup(0),playerSetup());
+selDeploy=-1;
+SFX.move();
+log("重新布阵：我方采用 "+formationName(),"sys");
+updateArmies();draw();
+});
+$("#btnStart").addEventListener("click",startGame);
+$("#btnUndo").addEventListener("click",undo);
+$("#btnResign").addEventListener("click",()=>endGame(0,"我方认输"));
+$("#btnSound").addEventListener("click",()=>{
+soundOn=!soundOn;
+$("#btnSound").textContent=soundOn?"音效：开":"音效：关";
+if(soundOn)SFX.select();
+});
+$("#btnNew").addEventListener("click",newGame);
+$("#btnAgain").addEventListener("click",newGame);
+}
+</script>
+</body>
+</html>
